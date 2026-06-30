@@ -1,0 +1,27 @@
+# モデルファイル（大容量）
+backend/models/
+*.onnx
+*.bin
+
+# 生成されたファイル
+backend/storage/
+
+# KokoCloneリポジトリ（git cloneで取得するため）
+backend/kokoclone/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+venv/
+.venv/
+*.egg-info/
+
+# Node
+node_modules/
+dist/
+.next/
+
+# OS
+.DS_Store
+Thumbs.db

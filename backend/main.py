@@ -6,28 +6,29 @@
   Step 2 (声で仕上げる): 下書き音声 + 声紋(参照音声) → KokoClone/Kanade(声質変換) → 最終音声
 
 実行方法:
-  pip install fastapi uvicorn python-multipart kokoro-onnx soundfile
-  git clone https://github.com/Ashish-Patnaik/kokoclone.git  (Step2用、別途セットアップ)
+  pip install -r requirements.txt
+  python setup_models.py           (初回のみ: モデルファイルをダウンロード)
+  git clone https://github.com/Ashish-Patnaik/kokoclone.git  (Step2用)
+  cd kokoclone && pip install -r requirements.txt && cd ..
   uvicorn main:app --reload --port 8000
-
-注意:
-  - Step1のKokoroと、Step2のKokoClone(Kanade)は別々のモデルロードが必要。
-    本番ではメモリ・GPU資源を考え、ワーカープロセスを分けることを推奨。
-  - 実際の重い処理は同期的にやらず、ジョブキュー(Celery+Redis等)に積むのが望ましい。
-    ここでは最小構成として BackgroundTasks で疑似的な非同期処理にしている。
-  - ファイルストレージはローカルディスクを想定(本番ではS3等に差し替え)。
 """
 
 import os
+import sys
+import logging
 import uuid
 import shutil
 from pathlib import Path
 from typing import Optional, Literal
 
+import numpy as np
+import soundfile as sf
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
+
+logger = logging.getLogger("voice-narration")
 
 # ============================================================
 # 設定
@@ -38,8 +39,14 @@ STORAGE_DIR = BASE_DIR / "storage"
 VOICE_PROFILES_DIR = STORAGE_DIR / "voice_profiles"
 DRAFT_AUDIO_DIR = STORAGE_DIR / "draft_audio"
 FINAL_AUDIO_DIR = STORAGE_DIR / "final_audio"
+MODELS_DIR = BASE_DIR / "models"
 
-for d in [VOICE_PROFILES_DIR, DRAFT_AUDIO_DIR, FINAL_AUDIO_DIR]:
+KOKORO_MODEL_PATH = MODELS_DIR / "kokoro-v1.0.onnx"
+KOKORO_VOICES_PATH = MODELS_DIR / "voices-v1.0.bin"
+
+KOKOCLONE_DIR = BASE_DIR / "kokoclone"
+
+for d in [VOICE_PROFILES_DIR, DRAFT_AUDIO_DIR, FINAL_AUDIO_DIR, MODELS_DIR]:
     d.mkdir(parents=True, exist_ok=True)
 
 app = FastAPI(title="声の記憶帳 API")
@@ -110,31 +117,59 @@ class ApplyVoiceRequest(BaseModel):
 # Step 1: Kokoro による素のTTS(読み上げ生成)
 # ============================================================
 
-def run_kokoro_tts(text: str, output_path: Path) -> None:
-    """
-    テキストを声紋非依存の既定ボイスで読み上げ、output_pathにWAVを保存する。
+_kokoro_instance = None
 
-    実際の実装イメージ(kokoro-onnxパッケージを使う場合):
 
-        from kokoro_onnx import Kokoro
-        import soundfile as sf
+def _get_kokoro():
+    global _kokoro_instance
+    if _kokoro_instance is not None:
+        return _kokoro_instance
 
-        kokoro = Kokoro("kokoro-v1.0.onnx", "voices-v1.0.bin")
-        samples, sample_rate = kokoro.create(
-            text,
-            voice="jf_alpha",   # 日本語の既定ボイス。実際のボイスIDはモデルに依存
-            speed=1.0,
-            lang="ja",
+    from kokoro_onnx import Kokoro
+
+    if not KOKORO_MODEL_PATH.exists() or not KOKORO_VOICES_PATH.exists():
+        raise RuntimeError(
+            f"Kokoroモデルファイルが見つかりません。"
+            f"python setup_models.py を実行してダウンロードしてください。"
+            f"期待パス: {KOKORO_MODEL_PATH}, {KOKORO_VOICES_PATH}"
         )
-        sf.write(str(output_path), samples, sample_rate)
 
-    長文の場合は文単位に分割して生成・結合する処理をここに追加する。
-    """
-    raise NotImplementedError(
-        "Kokoroモデルがロードされていません。"
-        "kokoro-onnxのセットアップ(モデルファイルの配置)後、"
-        "上記コメント内の実装に差し替えてください。"
-    )
+    logger.info("Kokoroモデルをロード中...")
+    _kokoro_instance = Kokoro(str(KOKORO_MODEL_PATH), str(KOKORO_VOICES_PATH))
+    logger.info("Kokoroモデルのロード完了")
+    return _kokoro_instance
+
+
+def _split_sentences(text: str) -> list[str]:
+    """日本語テキストを文単位に分割する。"""
+    import re
+    sentences = re.split(r'(?<=[。！？\!\?\.\n])', text)
+    return [s.strip() for s in sentences if s.strip()]
+
+
+def run_kokoro_tts(text: str, output_path: Path) -> None:
+    kokoro = _get_kokoro()
+
+    voice = os.environ.get("KOKORO_VOICE", "jf_alpha")
+    speed = float(os.environ.get("KOKORO_SPEED", "1.0"))
+    lang = os.environ.get("KOKORO_LANG", "ja")
+
+    sentences = _split_sentences(text)
+    if not sentences:
+        raise ValueError("読み上げるテキストが空です")
+
+    all_samples = []
+    sample_rate = None
+
+    for sentence in sentences:
+        samples, sr = kokoro.create(sentence, voice=voice, speed=speed, lang=lang)
+        sample_rate = sr
+        all_samples.append(samples)
+        # 文間に短い無音(0.3秒)を挿入
+        all_samples.append(np.zeros(int(sr * 0.3), dtype=np.float32))
+
+    combined = np.concatenate(all_samples)
+    sf.write(str(output_path), combined, sample_rate)
 
 
 def process_draft_generation(chapter_id: str):
@@ -159,39 +194,40 @@ def process_draft_generation(chapter_id: str):
 # Step 2: KokoClone(Kanade)による声質変換(声で仕上げる)
 # ============================================================
 
-def run_voice_conversion(source_audio_path: Path, reference_audio_path: Path, output_path: Path) -> None:
-    """
-    下書き音声(source)を、声紋の参照音声(reference)の声質に変換し、
-    output_pathに保存する。
+_kokoclone_instance = None
 
-    実際の実装イメージ(KokoCloneのAudio→Cloneモードを使う場合):
 
-        import soundfile as sf
-        from kanade_tokenizer import load_audio
-        from core.cloner import KokoClone
-        from core.chunked_convert import chunked_voice_conversion
+def _get_kokoclone():
+    global _kokoclone_instance
+    if _kokoclone_instance is not None:
+        return _kokoclone_instance
 
-        cloner = KokoClone()
-
-        source_wav = load_audio(str(source_audio_path), sample_rate=cloner.sample_rate).to(cloner.device)
-        ref_wav = load_audio(str(reference_audio_path), sample_rate=cloner.sample_rate).to(cloner.device)
-
-        converted = chunked_voice_conversion(
-            kanade=cloner.kanade,
-            vocoder_model=cloner.vocoder,
-            source_wav=source_wav,
-            ref_wav=ref_wav,
-            sample_rate=cloner.sample_rate,
+    if not KOKOCLONE_DIR.exists():
+        raise RuntimeError(
+            f"kokocloneディレクトリが見つかりません: {KOKOCLONE_DIR}\n"
+            f"git clone https://github.com/Ashish-Patnaik/kokoclone.git を実行してください。"
         )
-        sf.write(str(output_path), converted.numpy(), cloner.sample_rate)
 
-    長尺の下書き音声でもchunked_voice_conversionがVRAM対応の自動チャンク分割を
-    行うため、メモリ不足を気にせずそのまま渡せる。
-    """
-    raise NotImplementedError(
-        "KokoClone(Kanade)モデルがロードされていません。"
-        "kokocloneリポジトリのセットアップ後、"
-        "上記コメント内の実装に差し替えてください。"
+    # kokocloneのモジュールをインポートできるようにパスを追加
+    kokoclone_str = str(KOKOCLONE_DIR)
+    if kokoclone_str not in sys.path:
+        sys.path.insert(0, kokoclone_str)
+
+    from core.cloner import KokoClone
+
+    logger.info("KokoClone(Kanade)モデルをロード中...")
+    _kokoclone_instance = KokoClone()
+    logger.info("KokoClone(Kanade)モデルのロード完了")
+    return _kokoclone_instance
+
+
+def run_voice_conversion(source_audio_path: Path, reference_audio_path: Path, output_path: Path) -> None:
+    cloner = _get_kokoclone()
+
+    cloner.convert(
+        source_audio=str(source_audio_path),
+        reference_audio=str(reference_audio_path),
+        output_path=str(output_path),
     )
 
 

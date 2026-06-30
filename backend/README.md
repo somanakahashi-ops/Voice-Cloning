@@ -1,87 +1,93 @@
-# 声の記憶帳 - プロトタイプ接続手順
+# 声の記憶帳 - バックエンドセットアップ
 
-フロントエンド(voice-narration-prototype.jsx)とバックエンド(backend/main.py)を
-実際に繋いで動かすための手順です。
+## 前提条件
 
-## 構成
+- Python 3.10+
+- GPU環境推奨（Step2の声質変換はGPU前提。Step1のTTSはCPUでも動作するが遅い）
 
-```
-voice-narration-prototype.jsx   フロントエンド(React、Claude.aiのartifactとしてそのまま開ける)
-backend/main.py                  バックエンド(FastAPI)
-```
+## セットアップ
 
-## 1. バックエンドのセットアップ
+### 1. Python依存パッケージのインストール
 
 ```bash
 cd backend
-python -m venv venv
-source venv/bin/activate  # Windowsは venv\Scripts\activate
-
-pip install fastapi uvicorn python-multipart
+pip install -r requirements.txt
 ```
 
-この時点ではTTS/声質変換のモデルが未接続なので、API自体は起動して
-声紋登録・章のCRUDまでは動きますが、生成(/generate-draft, /apply-voice)を
-呼ぶと NotImplementedError が返ります。これは意図的な状態で、
-main.py内のコメントで示した実装に差し替えると動くようになります。
-
-### Step 1 (読み上げ生成) を動かす場合
+### 2. Kokoroモデルファイルのダウンロード（Step1用）
 
 ```bash
-pip install kokoro-onnx soundfile
+python setup_models.py
 ```
 
-`run_kokoro_tts` 関数のコメント内コードを参考に実装してください。
-モデルファイル(kokoro-v1.0.onnx, voices-v1.0.bin)は別途
-Hugging Faceなどから取得し配置する必要があります。
+`models/` ディレクトリに以下がダウンロードされます:
+- `kokoro-v1.0.onnx` （TTSモデル本体）
+- `voices-v1.0.bin` （声スタイル埋め込み）
 
-### Step 2 (声で仕上げる) を動かす場合
+### 3. KokoCloneのセットアップ（Step2用）
 
 ```bash
 git clone https://github.com/Ashish-Patnaik/kokoclone.git
 cd kokoclone
 pip install -r requirements.txt
-# GPU環境なら: pip install kokoro-onnx[gpu]
+cd ..
 ```
 
-`run_voice_conversion` 関数のコメント内コードを参考に実装してください。
-モデルの重みは初回実行時にHugging Faceから自動ダウンロードされます。
+GPU環境の場合:
+```bash
+pip install kokoro-onnx[gpu]
+```
 
-### サーバー起動
+Kanadeモデルの重みは初回実行時にHugging Faceから自動ダウンロードされます。
+
+### 4. サーバー起動
 
 ```bash
 uvicorn main:app --reload --port 8000
 ```
 
-`http://localhost:8000` でAPIが立ち上がります。
-`http://localhost:8000/docs` でSwagger UIから手動テストもできます。
+- API: `http://localhost:8000`
+- Swagger UI: `http://localhost:8000/docs`
 
-## 2. フロントエンドの接続
+## 環境変数（任意）
 
-`voice-narration-prototype.jsx` 内の `API_BASE` 定数が
-デフォルトで `http://localhost:8000` を指しています。
+| 変数名 | デフォルト | 説明 |
+|--------|-----------|------|
+| `KOKORO_VOICE` | `jf_alpha` | Step1で使う日本語ボイスID |
+| `KOKORO_SPEED` | `1.0` | 読み上げ速度（0.5〜2.0） |
+| `KOKORO_LANG` | `ja` | 言語コード |
 
-別ホスト・別ポートで動かす場合は、ビルド時に環境変数
-`REACT_APP_API_BASE` を設定するか、ファイル冒頭の `API_BASE` を直接書き換えてください。
+## ディレクトリ構成
 
-## 3. 動作確認の流れ
+```
+backend/
+├── main.py              APIサーバー本体
+├── setup_models.py      モデルダウンロードスクリプト
+├── requirements.txt     Python依存パッケージ
+├── README.md            このファイル
+├── models/              Kokoroモデルファイル（gitignore対象）
+│   ├── kokoro-v1.0.onnx
+│   └── voices-v1.0.bin
+├── kokoclone/           KokoCloneリポジトリ（git clone で取得）
+└── storage/             生成ファイル保存先（gitignore対象）
+    ├── voice_profiles/  アップロードされた声紋音声
+    ├── draft_audio/     Step1で生成した下書き音声
+    └── final_audio/     Step2で生成した最終音声
+```
 
-1. バックエンドを起動する
-2. フロントエンドを開く(接続できない場合は画面上部に赤いエラーバナーが出ます)
-3. 「新規録音」または「過去の音声を追加」で声紋を登録する
-4. 章を追加し、本文を入力して「読み上げを生成」を押す(Step1)
-5. Step1完了後、声紋を選んで「この声で仕上げる」を押す(Step2)
-6. 生成中はフロントが1.5秒おきにステータスをポーリングし、
-   完了次第「完成」表示に切り替わります
+## 動作確認の流れ
 
-## 既知の未実装・要検討事項
+1. サーバーを起動
+2. フロントエンドを開く（接続できない場合は画面上部に赤いエラーバナー）
+3. 声紋を登録（録音 or アップロード）
+4. 章を追加し、本文を入力して「読み上げを生成」（Step1）
+5. Step1完了後、声紋を選んで「この声で仕上げる」（Step2）
+6. フロントが1.5秒おきにポーリングし、完了次第「完成」表示
 
-- 前処理(ノイズ除去・正規化)は `create_voice_profile` 内で未実装。
-  `quality_note` は固定文言を返すのみ。
-- 長文の章をStep1で生成する際の文単位分割・結合処理は未実装。
-- 認証・ユーザー管理は未実装(個人利用前提の最小構成)。
-- ジョブキュー(Celery等)は未導入。BackgroundTasksによる簡易非同期のみ。
-  同時に複数の生成リクエストが来る運用では、Redis等を使ったキューに
-  差し替えることを推奨します。
-- ストレージはローカルディスク。本番ではS3等のオブジェクトストレージに
-  差し替えることを推奨します。
+## ライセンス情報
+
+| コンポーネント | ライセンス | 商用利用 |
+|---------------|-----------|---------|
+| KokoClone | Apache 2.0 | 可 |
+| Kokoro-ONNX | Apache 2.0 | 可 |
+| Kanade Tokenizer | MIT | 可 |
