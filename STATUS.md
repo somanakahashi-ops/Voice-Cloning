@@ -17,7 +17,7 @@
 
 - [ ] **AivisSpeech Engine本体のセットアップ** — 外部アプリのため要手動対応。https://aivis-project.com/ からダウンロード・起動し(既定で`localhost:10101`)、**CC0またはACML(商用可)の音声モデル**を選ぶこと(ACML-NCは不可)。ユーザー側の対応待ち。
 - [ ] **実GPU環境での疎通確認** — 未実施。このWindowsマシンにはNVIDIA GPUがない(AMD統合GPUのみ)ため確認できていない。クラウドGPU(RunPod、Lambda Labs等)を用意して検証する必要がある。
-- [ ] **Kanade Tokenizerのライセンス個別確認** — 未確認のまま採用中(handoff-instructions.txt記載の既知の保留事項)
+- [x] **Kanade Tokenizerのライセンス個別確認** — 確認済み(2026-07-06)。コード: MIT(パッケージMETADATAで確認)、モデル重みkanade-12.5hz: MIT(HFモデルカードで確認)、推論時に自動DLされるVocosボコーダー: MIT(HFで確認)。学習データはLibriTTS(パブリックドメインのLibriVox由来)。「商用利用可能なライセンスのみ」の方針を満たすことを裏付け済み
 
 ## ローカル環境(このWindowsマシン: C:\Users\porup)
 
