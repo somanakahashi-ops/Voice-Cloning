@@ -38,7 +38,13 @@
 
 - 提案の経緯は`handoff-instructions.txt`参照(別セッション2026-07-06更新): テキスト+声紋参照音声のワンショット生成で、経路BのAivisSpeech+KokoClone2段階を単体置き換えできる可能性
 - [x] **モデル重みのライセンス確認** — 確認済み(2026-07-07)。`Aratako/Irodori-TTS-500M-v3`は**MIT・商用利用可**(HFモデルカードで確認)。利用規約として「本人の明示的同意のない声のクローン禁止」等の倫理条項あり — 本プロジェクトは本人・同意者の声のみを扱う設計のため適合
-- [ ] `TTS_ENGINE=irodori`の実装(経路Bの単体構成化)は未着手。採用判断はユーザー待ち
+- [x] **経路Bの小規模聴き比べ音声を生成**(2026-07-07)。同一テキスト(第一章の冒頭2文)+同一声紋Aで2方式を生成:
+  - `backend/storage/compare/aivis_version.wav` — AivisSpeech(話者まお)→KokoClone変換の2段階(12.2秒。下書きTTSは数秒、変換33.6秒+モデルロード)
+  - `backend/storage/compare/irodori_version.wav` — Irodori-TTS-500M-v3ワンショット(14.1秒。CPU推論 約155秒)
+  - 生成スクリプト: `backend/compare_aivis.py`(AivisSpeech側)、Irodori側は`C:\Users\porup\irodori-tts`でinfer.py直叩き
+  - **教訓**: RAM15GBのマシンでKanade系プロセスを並行させるとMemoryErrorで落ちる。重い生成は直列実行すること
+  - AivisSpeech Engine 1.2.0は`C:\Users\porup\aivisspeech-engine\Windows-x64\run.exe`に導入済み(port 10101)
+- [ ] `TTS_ENGINE=irodori`の実装(経路Bの単体構成化)は**聴き比べの結果待ち**(ユーザー判断)
 
 ## 未着手・保留
 
