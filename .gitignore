@@ -5,6 +5,7 @@ backend/models/
 
 # 生成されたファイル
 backend/storage/
+backend/storage_private/
 
 # KokoCloneリポジトリ（git cloneで取得するため）
 backend/kokoclone/

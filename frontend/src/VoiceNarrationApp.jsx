@@ -522,11 +522,13 @@ function ChapterCard({ chapter, voiceProfiles, onUpdate, onDelete, onGenerateDra
         )}
         {hasDraft && (
           <div style={styles.donePlayer}>
-            <button onClick={() => onTogglePlay(`draft-${chapter.id}`)} style={{ ...styles.playDoneBtn, background: '#8A8273' }}>
-              {isPlayingDraft ? <Pause size={14} /> : <Play size={14} />}
-            </button>
+            {chapter.draftAudioUrl && (
+              <button onClick={() => onTogglePlay(`draft-${chapter.id}`)} style={{ ...styles.playDoneBtn, background: '#8A8273' }}>
+                {isPlayingDraft ? <Pause size={14} /> : <Play size={14} />}
+              </button>
+            )}
             <span style={styles.doneLabelMuted}>
-              <Check size={12} /> {isRecordingDraft ? '本人録音あり' : 'TTS下書きあり'}
+              <Check size={12} /> {isRecordingDraft ? '本人録音あり(非公開)' : 'TTS下書きあり'}
             </span>
             {bodyChangedSinceDraft && (
               <button

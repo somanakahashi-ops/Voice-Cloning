@@ -51,7 +51,11 @@ KOKORO_VOICES_PATH = MODELS_DIR / "voices-v1.0.bin"
 
 KOKOCLONE_DIR = BASE_DIR / "kokoclone"
 
-for d in [VOICE_PROFILES_DIR, DRAFT_AUDIO_DIR, FINAL_AUDIO_DIR, MODELS_DIR]:
+# 本人録音の下書きは恥ずかしさ・プライバシーに配慮し、静的配信されない領域に保存する
+# (/files 配下にないためURLでアクセスできない。Step2の処理はファイルパス経由で行うので影響なし)
+PRIVATE_DRAFT_DIR = BASE_DIR / "storage_private" / "draft_audio"
+
+for d in [VOICE_PROFILES_DIR, DRAFT_AUDIO_DIR, FINAL_AUDIO_DIR, MODELS_DIR, PRIVATE_DRAFT_DIR]:
     d.mkdir(parents=True, exist_ok=True)
 
 app = FastAPI(title="声の記憶帳 API")
@@ -486,13 +490,14 @@ async def upload_draft(chapter_id: str, audio: UploadFile = File(...)):
         raise HTTPException(status_code=404, detail="章が見つかりません")
 
     ext = Path(audio.filename).suffix or ".wav"
-    output_path = DRAFT_AUDIO_DIR / f"{chapter_id}{ext}"
+    output_path = PRIVATE_DRAFT_DIR / f"{chapter_id}{ext}"
 
     with output_path.open("wb") as f:
         shutil.copyfileobj(audio.file, f)
 
     chapter["draft_status"] = "done"
-    chapter["draft_audio_url"] = f"/files/draft_audio/{output_path.name}"
+    # 本人録音は配信しない(URLなし)。Step2には draft_audio_path 経由で使われる
+    chapter["draft_audio_url"] = None
     chapter["draft_audio_path"] = str(output_path)
     chapter["draft_source_body"] = chapter["body"]
     chapter["draft_source"] = "recording"
