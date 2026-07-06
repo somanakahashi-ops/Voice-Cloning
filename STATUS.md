@@ -1,0 +1,49 @@
+# 現在の作業状況
+
+最終更新: 2026-07-06(このセッションでの作業内容)
+
+このファイルは「今どこまで進んでいて、次に何をすればいいか」を後継セッション(別のClaude Codeセッション、claude.ai/codeセッション等)が把握するためのものです。設計の背景や方針は `handoff-instructions.txt` を参照してください。こちらは常に最新の実装状況・環境状況を反映するように更新してください。
+
+## 実装状況(backend/main.py)
+
+- [x] `run_kokoro_tts()` — 実装済み(Kokoro-ONNX)
+- [x] `run_aivisspeech_tts()` — 実装済み(AivisSpeech Engine、既定のTTSエンジン)
+- [x] `run_voice_conversion()` — 実装済み。`KokoClone.convert()`が内部で`chunked_voice_conversion`を使うため、長尺音声のVRAM対策も込み
+- [x] 長文の文単位分割 — `_split_sentences()`で実装済み(TTS生成時に文ごとに分割し無音を挟んで結合)
+- [x] 声紋登録時の軽量な前処理 — `_preprocess_voice_profile_audio()`で実装済み(DCオフセット除去・ピークレベル正規化のみ。方針により強いノイズ除去はしていない)
+- [x] 本人録音アップロード(`POST /api/chapters/{id}/upload-draft`) — 実装済み(TTSを経由せず下書き音声として直接使う)
+
+## 未着手・保留
+
+- [ ] **AivisSpeech Engine本体のセットアップ** — 外部アプリのため要手動対応。https://aivis-project.com/ からダウンロード・起動し(既定で`localhost:10101`)、**CC0またはACML(商用可)の音声モデル**を選ぶこと(ACML-NCは不可)。ユーザー側の対応待ち。
+- [ ] **実GPU環境での疎通確認** — 未実施。このWindowsマシンにはNVIDIA GPUがない(AMD統合GPUのみ)ため確認できていない。クラウドGPU(RunPod、Lambda Labs等)を用意して検証する必要がある。
+- [ ] **Kanade Tokenizerのライセンス個別確認** — 未確認のまま採用中(handoff-instructions.txt記載の既知の保留事項)
+
+## ローカル環境(このWindowsマシン: C:\Users\porup)
+
+- Python: デフォルトは3.14だが、spaCy系依存(blis)のビルドが通らないため**Python 3.12を別途インストールし専用venvを使用**
+  - venv: `backend\.venv`(Python 3.12.10)
+  - `backend\requirements.txt` と `backend\kokoclone\requirements.txt` の両方をこのvenvにインストール済み
+- PyTorch: `2.12.1+cpu`(CPU版。このマシンにNVIDIA GPUがないため)
+- Kokoroモデルファイル: `backend\models\` にダウンロード済み(kokoro使用時の代替エンジン用)
+- KokoClone: `backend\kokoclone\` にclone済み
+
+## Git自動化
+
+1. **平日18時までの自動sync**(Windowsタスクスケジューラ: `VoiceCloningAutoSync`)
+   - スクリプト: `C:\Users\porup\scripts\voice-cloning-autosync.ps1`
+   - 平日0:00〜24:00に1時間おきにチェック。18時以降・未同期・**作業ツリーがクリーンな場合のみ** pull→push
+   - 未コミットの変更がある場合は何もしない(作業中のものを勝手にコミットしないため)
+   - ログ: `C:\Users\porup\scripts\voice-cloning-autosync-log.txt`
+
+2. **会話終了時の自動push**(Stopフック、`Voice-Cloning\.claude\settings.local.json`。gitignore対象でリポジトリには含まれない)
+   - スクリプト: `C:\Users\porup\scripts\voice-cloning-stop-hook.sh`(bash)
+   - 実行時のcwdが `C:\Users\porup\Voice-Cloning` 配下のときだけ動作。commit→pull→push
+   - **注意**: cwdが `C:\Users\porup`(親ディレクトリ)を起点にしたセッションでは発火しない。Voice-Cloningフォルダを起点に `claude` を起動したセッションでのみ有効
+   - ログ: `C:\Users\porup\scripts\voice-cloning-hook-log.txt`
+   - このリポジトリ専用のgit identityをlocal設定済み(`Claude <noreply@anthropic.com>`)
+
+## 既知のハマりどころ(このマシン固有)
+
+- Windows PowerShell 5.1で、ネイティブコマンド(git等)の標準エラー出力を`2>&1`でマージすると、`$ErrorActionPreference = "Stop"`と組み合わさって例外扱いされる(git push/pullの正常時メッセージが誤ってエラー扱いになる)。→ ネイティブコマンドは`2>&1`せずに実行し、`$LASTEXITCODE`で判定すること
+- 日本語を含む`.ps1`ファイルはBOM付きUTF-8で保存しないとWindows PowerShell 5.1でパースエラーになることがある
