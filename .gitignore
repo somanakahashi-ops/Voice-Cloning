@@ -25,3 +25,6 @@ dist/
 # OS
 .DS_Store
 Thumbs.db
+
+# Claude Code(個人ローカル設定)
+.claude/settings.local.json
