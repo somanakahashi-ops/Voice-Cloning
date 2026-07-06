@@ -16,6 +16,13 @@
 - [x] **Step2のE2E動作確認(CPU)** — 確認済み(2026-07-06)。声紋登録→声質変換が**モデルロード込みで約90秒**(8秒の音声、CPU)で成功。出力は24kHzの正常なWAV。**個人利用の短い章ならCPUでも実用範囲**の可能性が高い
 - [x] **フロントエンドの実行環境** — `frontend/`にVite(React)プロジェクトを作成し、`voice-narration-prototype.tsx`を`src/VoiceNarrationApp.jsx`として組み込み済み。ビルド・表示確認済み。起動: `cd frontend && npm install && npm run dev`(API_BASEはlocalhost:8000がデフォルト)
 
+## 公開(2026-07-07)
+
+- リポジトリを公開に変更: https://github.com/somanakahashi-ops/Voice-Cloning
+- フロントエンドUIをGitHub Pagesで公開: **https://somanakahashi-ops.github.io/Voice-Cloning/**
+  - pushのたびにGitHub Actionsで自動ビルド&デプロイされる(`.github/workflows/deploy-pages.yml`)
+  - バックエンドは含まれないため、公開ページでは生成機能は動かない(接続エラーバナーが出る見た目のデモ)。実動はローカルで`uvicorn`+`npm run dev`
+
 ## 実データでの検証(2026-07-06)
 
 - **第一章「誕生」**: 本人の読み上げ録音(25.8秒、m4a)を下書きとして登録し、Step2で声質変換まで完走
