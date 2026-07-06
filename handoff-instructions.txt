@@ -1,7 +1,9 @@
 声の記憶帳 - 引き継ぎ指示書
 ==========================
 作成日: 2026-06-30
+最終更新: 2026-07-06
 リポジトリ: https://github.com/somanakahashi-ops/Voice-Cloning
+開発ブランチ: claude/cloning-conversation-yvcyfw
 
 
 ■ プロジェクト概要
@@ -13,6 +15,15 @@
 ライセンス面はクリアな構成を選んでいる。
 
 
+■ 最重要の方針(2026-07-06に確認・言語化):
+ゴールは「設計を守ること」ではなく「クローニングを成功させること」
+--------------------------------------------------------------------
+以前は「Step1(読み上げ)とStep2(声質変換)の分離構成を崩さない」ことを
+確定事項としていたが、これは目的ではなく手段だったと整理し直した。
+判断に迷ったら、常に「この構成のままでクローニングは成功するか」を問うこと。
+構成そのものへのこだわりは持たない。
+
+
 ■ これまでに確定した設計判断(重要・変更しない前提で進めてよい)
 ----------------------------------------------------------------
 
@@ -20,110 +31,210 @@
    - XTTS-v2(Coqui)は不採用。理由: Coqui Public Model License(CPML)が非商用限定。
      さらにCoqui社は2024年1月に倒産しており、商用ライセンスを購入する手段すら
      現在は存在しない。
-   - 採用技術は KokoClone (https://github.com/Ashish-Patnaik/kokoclone)。
-     Apache 2.0ライセンスで商用利用可能。Kokoro-ONNX(高速TTS)と
-     Kanade Tokenizer(ゼロショット声質変換)を組み合わせたプロジェクト。
-   - Kanade Tokenizer自体のライセンスは個別確認すること(未確認のまま採用している)。
+   - Style-BERT-VITS2はAGPL v3。ネットワーク経由利用(SaaS化)でソース開示義務が
+     発生するため、将来の商用展開を考えると避けたい(個人利用のみなら問題なし)。
+   - 音声モデル単位のライセンスにも注意すること。エンジン自体が商用利用可でも、
+     同梱の音声モデルが個別に非商用ライセンス(例: ACML-NC)のことがある。
 
-2. 生成パイプラインは「2段階構成」で確定
-   Step 1(読み上げ生成): テキスト → Kokoro(素のTTS、固定ボイス) → 下書き音声
-   Step 2(声で仕上げる): 下書き音声 + 声紋(参照音声) → KokoClone内
-                          Kanadeの「Audio→Cloneモード」(声質変換) → 最終音声
+2. 声質変換(音声→音声)には KokoClone を採用
+   https://github.com/Ashish-Patnaik/kokoclone
+   Apache 2.0ライセンスで商用利用可能。Kanade Tokenizer(ゼロショット声質変換)は
+   MITライセンスで商用利用可能(確認済み)。
+   `core.cloner.KokoClone` の `convert(source_audio, reference_audio, output_path)`
+   で、既存の音声(下書き)をそのまま声紋(参照音声)の声質に変換できる。
+   backend/main.py の run_voice_conversion() で実装済み。
 
-   理由: テキストの正確さ(発音・間)と声質を別々にチューニング・デバッグできる。
-   下書き音声は声紋非依存なので、同じ章を複数の声紋(年代違い)で
-   試聴比較する用途にも使い回せる。
+3. 下書き音声(Step1)は2つの経路で用意できる(2026-07-06に設計変更・実装済み)
+   経路A: 本人が現在の声で読み上げた録音をそのままアップロード
+          → TTSを経由しないため、ナレーションの自然さが発話そのもので保証される
+          → POST /api/chapters/{id}/upload-draft で実装済み
+   経路B: TTS合成(本人が読めない章向け)
+          → TTS_ENGINE環境変数で aivisspeech(既定) / kokoro を切り替え可能
+          → backend/main.py の run_tts() で実装済み
 
-   KokoCloneのAudio→Cloneモードは文字起こし不要、任意の長さの録音に対応
-   (VRAM対応の自動チャンク分割: chunked_voice_conversion関数)。
+   どちらの経路で作った下書きも、Step2(KokoCloneによる声質変換)にそのまま使える。
+   これにより「下書きを使い回して声紋だけ差し替える」という運用上の利点は
+   両経路で維持されている。
 
-3. 声紋は「1人に対して複数」のデータモデル
+   TTSエンジンの選定経緯:
+   - 当初 Kokoro-ONNX(Apache 2.0、多言語対応)を採用したが、日本語専用モデルより
+     自然さで劣る傾向がある(下記の比較記事調査より)。
+   - AivisSpeech Engine(LGPL-3.0、日本語特化、CPU動作可)に切替え。商用利用可能
+     だが、音声モデルは個別ライセンス(CC0 / ACML=商用可、ACML-NC=非商用限定が
+     混在)なので、ACML-NC以外を選ぶこと。
+   - Kokoroもフォールバックとして引き続き選択可能(TTS_ENGINE=kokoro)。
+
+4. 声紋は「1人に対して複数」のデータモデル
    過去の実録音(古いビデオ、ボイスメモ等)をそのまま参照音声として登録する想定。
    現在の声から過去の声を推定生成する「年齢変換」は対象外(技術的に未成熟なため)。
    音質劣化(ノイズ、低サンプリングレート等)はあえて許容する方針。
    「当時の質感が乗る」ことはむしろ良しとする。
 
 
-■ 現在の実装状況
-------------------
+■ 現在の実装状況(2026-07-06時点)
+------------------------------------
 
-1. フロントエンド(完成、ローカルでは動作確認可能)
-   ファイル: voice-narration-prototype.jsx (React, 単一ファイル)
+1. フロントエンド
+   ファイル: voice-narration-prototype.tsx (React, 単一ファイル)
    - 声紋ライブラリ(録音 / アップロード、カセットテープ風UI、年代タグで色分け)
    - 章エディタ(タイムライン形式、章ごとに本文編集)
-   - Step1「読み上げを生成」ボタン → Step2「この声で仕上げる」ボタンの2段階UI
-   - 実際のバックエンドAPI(後述)にfetchで接続する形まで実装済み
-   - バックエンドが繋がらない場合はエラーバナーを表示する作りになっている
+   - Step1: 「本人の声で録音/アップロード」ボタン と 「TTSで読み上げを生成」
+     ボタンを並列表示。どちらかで下書きを用意する。
+   - Step2: 「この声で仕上げる」ボタン(声紋を選んで声質変換)
+   - 本文編集後、下書きの出所(TTS/録音)に応じて「再生成」または
+     「録音をやり直す」の導線が出る
+   - バックエンドが繋がらない場合はエラーバナーを表示
    - API_BASE定数(デフォルト http://localhost:8000)を環境に応じて変更すること
 
-2. バックエンド(雛形のみ、TTS/声質変換の中身は未実装)
+2. バックエンド(TTS/声質変換ともに実装済み。GPU環境での疎通確認は未実施)
    ファイル: backend/main.py (FastAPI)
    - 声紋CRUD: POST/GET/DELETE /api/voice-profiles
    - 章CRUD: POST/GET/PATCH/DELETE /api/chapters
-   - 生成エンドポイント:
-       POST /api/chapters/{id}/generate-draft  (Step1)
-       POST /api/chapters/{id}/apply-voice     (Step2)
+   - 下書き関連:
+       POST /api/chapters/{id}/generate-draft  (TTS合成、Step1経路B)
+       POST /api/chapters/{id}/upload-draft    (本人録音、Step1経路A)
+       POST /api/chapters/{id}/apply-voice     (声質変換、Step2)
        GET  /api/chapters/{id}/status          (ポーリング用)
-   - run_kokoro_tts() と run_voice_conversion() の2関数が NotImplementedError。
-     関数内のコメントに実装イメージ(kokoro-onnx / KokoCloneの使い方)を
-     書いてあるので、それを参考に実装すること。
-   - データはインメモリ(プロトタイプ用)。本番ではDBに置き換える前提。
-   - ジョブはBackgroundTasksで簡易非同期にしているのみ。
-     同時リクエストが増える運用ではCelery+Redis等のジョブキューへの
-     差し替えを推奨。
+   - run_tts() : TTS_ENGINE環境変数でaivisspeech/kokoroを切替え実装済み
+   - run_voice_conversion() : KokoCloneのconvert()を呼ぶ実装済み
+   - モデルは遅延ロード(初回API呼び出し時にインスタンス化)
+   - データはインメモリ(プロトタイプ用)。本番ではDBに置き換え前提。
+   - ジョブはBackgroundTasksで簡易非同期。同時リクエストが増える運用では
+     Celery+Redis等のジョブキューへの差し替えを推奨。
    - ストレージはローカルディスク。本番ではS3等への差し替えを推奨。
 
    詳細手順は backend/README.md に記載済み。
+   セットアップ用: backend/setup_models.py (Kokoroモデルのダウンロード。
+   AivisSpeech使用時は別途エンジンを起動する必要がある、README参照)
+
+
+■ 検討したが不採用/保留にした技術(2026-07-06調査)
+----------------------------------------------------
+
+【Qwen3-TTS】(Alibaba, 2026年1月公開, Apache 2.0)
+  参考記事: https://qiita.com/GeneLab_999/items/bc07147b589a93bf6114
+  (ローカルTTS5種の実測比較記事。RTX5090環境)
+
+  特徴: 3秒の参照音声でゼロショットボイスクローン可能、10言語対応、
+        97ms低遅延ストリーミング、VRAM約4.2GB(RTX5090実測)。
+
+  比較記事での評価(5点満点の主観評価、値は記事著者の実測):
+    日本語自然さ: Qwen3-TTS 4/5、Style-BERT-VITS2/AivisSpeech 5/5(最高)
+    → 多言語汎用モデルは日本語特化モデルより自然さで劣る傾向が確認された。
+
+  不採用の理由:
+    - API仕様が「テキスト+参照音声→音声」のワンショット構成(audio-to-audio
+      ではない)。下書き音声を使い回して声紋だけ差し替える、という運用と
+      噛み合わない(声紋を変えるたびにテキストから再生成が必要になる)。
+    - 日本語自然さでも日本語特化モデルに劣る。
+  今後試す可能性: 品質のA/Bテスト候補としては残しておいてよいが、優先度は低い。
+
+【Irodori-TTS】(Aratako, 2026年3月公開, コードMITライセンス)
+  GitHub: https://github.com/Aratako/Irodori-TTS
+  Hugging Face: https://huggingface.co/Aratako/Irodori-TTS-500M-v3 (v2, v3,
+  600M-VoiceDesign版等あり)
+  参考記事:
+    https://gigazine.net/news/20260504-irodori-tts-text-to-speech-ai/
+    https://zenn.dev/acntechjp/articles/530307d5e9c459 (「無料・商用可」と紹介)
+    https://hatohato.jp/blog/core/single.php?id=1032
+
+  特徴:
+    - Flow Matching(RF-DiT)ベース、約500Mパラメータの軽量日本語特化TTS
+    - ゼロショットボイスクローン内蔵(--ref-wavに参照音声を渡すだけ)
+    - 日本語専用のテキスト正規化・トークナイザーを使用(多言語汎用モデルより
+      日本語の自然さで有利と推測される)
+    - CPU動作可(--extra cpu)。GPU環境ならCUDA 12.8対応で高速
+    - 絵文字による感情・スタイル制御、テキストのみで声質を設計できる
+      VoiceDesign版もあり
+    - インストールは pip ではなく uv パッケージマネージャを使用
+
+  API仕様(CLI例):
+    uv run --no-sync python infer.py \
+      --hf-checkpoint Aratako/Irodori-TTS-500M-v3 \
+      --text "テキスト" \
+      --ref-wav path/to/reference.wav \
+      --output-wav outputs/sample.wav
+
+  重要な制約(2026-07-06に確認済み):
+    - Qwen3-TTSと同じく「テキスト+参照音声→音声」のワンショット構成。
+      既存の音声(ソース音声)を渡して声質だけ変換する機能(audio-to-audio)は
+      **存在しない**。したがって本人録音パス(経路A)の代替にはならず、
+      KokoClone(Kanade)は経路A用として引き続き必要。
+    - --ref-wavは単一ファイルのみ対応。複数の参照音声を渡してブレンドする
+      機能はドキュメント上見当たらない(--ref-embedで事前計算済み話者埋め込みを
+      渡すオプションはある)。
+      複数録音を使いたい場合は、こちらで事前に音声を結合してから1本の
+      参照音声として渡す方式が現実的(同じ声紋内の複数録音を無音を挟んで
+      結合するイメージ)。ただし参照音声の内部での最大長・トリミング有無は
+      ドキュメントに明記がなく未検証。
+
+  未確認事項(重要・要検証):
+    - モデルの重み(学習済みパラメータ)自体のライセンス。コードはMITだが、
+      重みは個別にHugging Face上のモデルカードで確認が必要
+      (このセッションではプロキシ制限でHugging Faceに直接アクセスできず
+      未検証のまま。記事タイトルには「商用可」とあるが未検証の二次情報)。
+
+  位置づけ:
+    経路B(TTS生成パス、本人が読めない章向け)において、
+    「AivisSpeechで下書き生成 → KokoCloneで声質変換」の2段階を
+    Irodori-TTS単体(テキスト+年代の声紋参照音声→直接その年代の声で生成)に
+    置き換えられる可能性がある有力候補。軽量(500M)なので声紋を変えての
+    再生成コストも低いと見込まれる。
+    ただし上記の「モデル重みのライセンス未確認」を解消してから採用判断すること。
 
 
 ■ 後継セッションへの依頼事項(優先順)
 ----------------------------------------
 
-1. このリポジトリ(somanakahashi-ops/Voice-Cloning)に
-   voice-narration-prototype.jsx と backend/ 一式をpushする
-   (まだリポジトリは空の可能性あり。要確認)
+1. 実機(GPU環境)での疎通確認
+   - GPU搭載PCにClaude Code CLIをセットアップ済み(このセッションの並行作業)
+   - backend/README.md の手順に従ってセットアップし、実際に
+     TTS生成→声質変換のフルパイプラインが動くか確認する
+   - AivisSpeech Engineは別プロセスとして起動が必要(README参照)
 
-2. backend/main.py の run_kokoro_tts() を実装する
-   - kokoro-onnx パッケージをインストール
-   - 日本語ボイスモデル(kokoro-v1.0.onnx, voices-v1.0.bin)を取得・配置
-   - 関数内コメントのサンプルコードを参考に実装
+2. Irodori-TTSのモデル重みライセンスを確認する
+   - https://huggingface.co/Aratako/Irodori-TTS-500M-v3 のモデルカードを確認
+   - 商用利用可能と確認できたら、TTS_ENGINE の選択肢に "irodori" を追加し、
+     経路B(TTS生成パス)をIrodori-TTS単体構成に置き換えることを検討
+     (AivisSpeech+KokoCloneの2段階 → Irodori-TTS単体のテキスト+声紋参照の
+     ワンショット構成)
+   - 経路A(本人録音パス)はKokoClone(Kanade)による声質変換のまま維持
 
-3. backend/main.py の run_voice_conversion() を実装する
-   - https://github.com/Ashish-Patnaik/kokoclone をセットアップ
-   - Kanade Tokenizerのライセンスを個別確認(未確認のまま)
-   - 関数内コメントのサンプルコードを参考に実装
-   - chunked_voice_conversion関数を使うこと(長尺音声でのVRAM対策のため)
+3. 声紋の複数録音結合機能の検討(優先度低・保留)
+   - 同じ声紋(年代)に複数の音声素材がある場合、無音を挟んで結合してから
+     参照音声として渡すことで、クローン品質が上がるか検証する
+   - Irodori-TTS/KokoCloneどちらの参照音声にも適用できる可能性がある
+   - 実装前にGPU環境で「単一 vs 結合」の効果を聴き比べて確認すること
 
-4. 実機(GPU環境)での疎通確認
-   - この設計のTTS・声質変換は、CPUでは現実的な速度で動かない可能性が高い
-   - クラウドGPU(RunPod、Lambda Labs等)での実行を想定しておくこと
-   - claude.ai/code(Claude Code on the web)経由で操作する場合、
-     ネットワークアクセス設定で pip install 等のパッケージ取得を
-     許可するモードを選ぶこと。GPUの有無は環境依存のため要確認。
-
-5. 声紋登録時の前処理(ノイズ除去・正規化)を実装する
+4. 声紋登録時の前処理(ノイズ除去・正規化)を実装する
    - 現状 create_voice_profile() 内は前処理なし、固定文言のquality_noteを返すのみ
    - 過去の劣化した音声(古いビデオ、ボイスメモ等)が入力される前提のため、
      最低限のノイズ除去・サンプリングレート統一は入れた方がよい
    - ただし「当時の質感を残す」方針なので、過度なクリーンアップはしないこと
 
-6. 長文の章をStep1で生成する際の文単位分割・結合処理
-   - 現状未実装。長いナレーション原稿を一括でKokoroに投げた場合の
-     安定性は未検証
+5. 長文の章をTTS生成(経路B)する際の安定性検証
+   - 文単位分割・結合処理は実装済み(run_tts内)だが、実際の長文での
+     安定性・自然さは未検証
 
 
 ■ 判断に迷ったら参照すべき方針
 --------------------------------
-- ライセンスは常に「商用利用可能」を最優先する(将来の展開可能性を残すため)
+- ゴールは「クローニングの成功」であり、特定の設計・構成を守ることではない
+- ライセンスは常に「商用利用可能」を最優先する(将来の展開可能性を残すため)。
+  エンジン本体だけでなく、モデル重み単位のライセンスも個別に確認すること
 - 過去の音声の劣化・ノイズは「当時の質感」として許容する(過度な補正はしない)
 - 声紋は人物1人に対して複数(年代・時代別)持てる設計を崩さない
-- Step1(読み上げ)とStep2(声質変換)の分離構成を崩さない
-  (本文修正時の部分的再生成、声紋違いでの聴き比べに必要なため)
+- 声質変換(既存音声→声質だけ変える)と、TTS生成(テキストから声を作る)は
+  別の技術要件であることを混同しない。前者はKokoClone、後者はAivisSpeech/
+  Kokoro/Irodori-TTS等が担当領域
 
 
-■ ファイル一覧(このやり取りで作成済み)
-------------------------------------------
-- voice-narration-prototype.jsx   フロントエンド本体
-- backend/main.py                  バックエンドAPI雛形
-- backend/README.md                セットアップ・接続手順
-- handoff-instructions.txt         この引き継ぎ指示書
+■ ファイル一覧
+------------------
+- voice-narration-prototype.tsx     フロントエンド本体
+- backend/main.py                    バックエンドAPI(TTS/声質変換 実装済み)
+- backend/setup_models.py            Kokoroモデルダウンロードスクリプト
+- backend/requirements.txt           Python依存パッケージ
+- backend/README.md                  セットアップ・接続手順
+- handoff-instructions.txt           この引き継ぎ指示書
+- .gitignore                         モデルファイル・生成物を除外
