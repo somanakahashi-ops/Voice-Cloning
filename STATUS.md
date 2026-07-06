@@ -12,11 +12,14 @@
 - [x] 長文の文単位分割 — `_split_sentences()`で実装済み(TTS生成時に文ごとに分割し無音を挟んで結合)
 - [x] 声紋登録時の軽量な前処理 — `_preprocess_voice_profile_audio()`で実装済み(DCオフセット除去・ピークレベル正規化のみ。方針により強いノイズ除去はしていない)
 - [x] 本人録音アップロード(`POST /api/chapters/{id}/upload-draft`) — 実装済み(TTSを経由せず下書き音声として直接使う)
+- [x] **Step1のE2E動作確認(CPU)** — 確認済み(2026-07-06)。`TTS_ENGINE=kokoro`で日本語短文→WAV生成が約10秒以内で成功
+- [x] **Step2のE2E動作確認(CPU)** — 確認済み(2026-07-06)。声紋登録→声質変換が**モデルロード込みで約90秒**(8秒の音声、CPU)で成功。出力は24kHzの正常なWAV。**個人利用の短い章ならCPUでも実用範囲**の可能性が高い
+- [x] **フロントエンドの実行環境** — `frontend/`にVite(React)プロジェクトを作成し、`voice-narration-prototype.tsx`を`src/VoiceNarrationApp.jsx`として組み込み済み。ビルド・表示確認済み。起動: `cd frontend && npm install && npm run dev`(API_BASEはlocalhost:8000がデフォルト)
 
 ## 未着手・保留
 
 - [ ] **AivisSpeech Engine本体のセットアップ** — 外部アプリのため要手動対応。https://aivis-project.com/ からダウンロード・起動し(既定で`localhost:10101`)、**CC0またはACML(商用可)の音声モデル**を選ぶこと(ACML-NCは不可)。ユーザー側の対応待ち。
-- [ ] **実GPU環境での疎通確認** — 未実施。このWindowsマシンにはNVIDIA GPUがない(AMD統合GPUのみ)ため確認できていない。クラウドGPU(RunPod、Lambda Labs等)を用意して検証する必要がある。
+- [ ] **実GPU環境での検証** — CPUでの疎通は確認済み(上記)。長い章や大量生成でCPUが遅すぎる場合のみ、クラウドGPU(RunPod、Lambda Labs等)を検討すればよい(必須ではなくなった)。
 - [x] **Kanade Tokenizerのライセンス個別確認** — 確認済み(2026-07-06)。コード: MIT(パッケージMETADATAで確認)、モデル重みkanade-12.5hz: MIT(HFモデルカードで確認)、推論時に自動DLされるVocosボコーダー: MIT(HFで確認)。学習データはLibriTTS(パブリックドメインのLibriVox由来)。「商用利用可能なライセンスのみ」の方針を満たすことを裏付け済み
 
 ## ローカル環境(このWindowsマシン: C:\Users\porup)
