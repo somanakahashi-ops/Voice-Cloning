@@ -51,7 +51,11 @@ KOKORO_VOICES_PATH = MODELS_DIR / "voices-v1.0.bin"
 
 KOKOCLONE_DIR = BASE_DIR / "kokoclone"
 
-for d in [VOICE_PROFILES_DIR, DRAFT_AUDIO_DIR, FINAL_AUDIO_DIR, MODELS_DIR]:
+# 本人録音の下書きは恥ずかしさ・プライバシーに配慮し、静的配信されない領域に保存する
+# (/files 配下にないためURLでアクセスできない。Step2の処理はファイルパス経由で行うので影響なし)
+PRIVATE_DRAFT_DIR = BASE_DIR / "storage_private" / "draft_audio"
+
+for d in [VOICE_PROFILES_DIR, DRAFT_AUDIO_DIR, FINAL_AUDIO_DIR, MODELS_DIR, PRIVATE_DRAFT_DIR]:
     d.mkdir(parents=True, exist_ok=True)
 
 app = FastAPI(title="声の記憶帳 API")
@@ -328,6 +332,32 @@ def process_voice_application(chapter_id: str, voice_profile_id: str):
 # 声紋API
 # ============================================================
 
+def _preprocess_voice_profile_audio(path: Path) -> tuple[Optional[float], str]:
+    """
+    声紋用音声の軽量な前処理。
+    方針: 過去の実録音(古いビデオ、ボイスメモ等)の「当時の質感」を残すため、
+    ノイズ除去や強い補正はせず、DCオフセット除去とピークレベル正規化のみ行う。
+    """
+    try:
+        data, sr = sf.read(str(path), always_2d=False)
+    except Exception as e:
+        return None, f"前処理をスキップしました(音声の読み込みに失敗: {e})。アップロードした音声をそのまま使用します。"
+
+    if data.ndim > 1:
+        data = data.mean(axis=1)
+    data = data.astype(np.float32)
+
+    data = data - np.mean(data)
+
+    peak = float(np.max(np.abs(data))) if data.size else 0.0
+    if peak > 1e-6:
+        data = data / peak * 0.95
+
+    sf.write(str(path), data, sr)
+    duration_sec = (len(data) / sr) if sr else None
+    return duration_sec, "軽量な前処理を実施(DCオフセット除去・ピークレベル正規化)。ノイズ除去や強い補正は行っていません(当時の質感を残す方針)。"
+
+
 @app.post("/api/voice-profiles", response_model=VoiceProfileOut)
 async def create_voice_profile(
     label: str = Form(...),
@@ -342,8 +372,7 @@ async def create_voice_profile(
     with saved_path.open("wb") as f:
         shutil.copyfileobj(audio.file, f)
 
-    # 本来はここで前処理(ノイズ除去・正規化・品質チェック)を行う
-    quality_note = "前処理は未実装です。アップロードした音声をそのまま参照音声として使用します。"
+    duration_sec, quality_note = _preprocess_voice_profile_audio(saved_path)
 
     profile = {
         "id": profile_id,
@@ -352,7 +381,7 @@ async def create_voice_profile(
         "source_type": source_type,
         "audio_path": str(saved_path),
         "audio_url": f"/files/voice_profiles/{saved_path.name}",
-        "duration_sec": None,
+        "duration_sec": duration_sec,
         "quality_note": quality_note,
     }
     voice_profiles_db[profile_id] = profile
@@ -461,13 +490,14 @@ async def upload_draft(chapter_id: str, audio: UploadFile = File(...)):
         raise HTTPException(status_code=404, detail="章が見つかりません")
 
     ext = Path(audio.filename).suffix or ".wav"
-    output_path = DRAFT_AUDIO_DIR / f"{chapter_id}{ext}"
+    output_path = PRIVATE_DRAFT_DIR / f"{chapter_id}{ext}"
 
     with output_path.open("wb") as f:
         shutil.copyfileobj(audio.file, f)
 
     chapter["draft_status"] = "done"
-    chapter["draft_audio_url"] = f"/files/draft_audio/{output_path.name}"
+    # 本人録音は配信しない(URLなし)。Step2には draft_audio_path 経由で使われる
+    chapter["draft_audio_url"] = None
     chapter["draft_audio_path"] = str(output_path)
     chapter["draft_source_body"] = chapter["body"]
     chapter["draft_source"] = "recording"

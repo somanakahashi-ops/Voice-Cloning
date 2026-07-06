@@ -5,6 +5,7 @@ backend/models/
 
 # 生成されたファイル
 backend/storage/
+backend/storage_private/
 
 # KokoCloneリポジトリ（git cloneで取得するため）
 backend/kokoclone/
@@ -25,3 +26,14 @@ dist/
 # OS
 .DS_Store
 Thumbs.db
+
+# Claude Code(個人ローカル設定)
+.claude/settings.local.json
+
+# 音声ファイル(個人の声を誤ってpushしないため。モデル用の.binは上で除外済み)
+*.m4a
+*.mp3
+*.wav
+*.webm
+*.aac
+*.flac
