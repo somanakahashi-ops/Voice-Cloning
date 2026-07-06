@@ -1,12 +1,20 @@
 # 声の記憶帳 - バックエンド依存パッケージ
 #
-# Step 1 (Kokoro TTS) + API サーバーに必要なもの
+# API サーバー + Step 1 (TTS) 共通
 fastapi>=0.100
 uvicorn[standard]>=0.20
 python-multipart>=0.0.6
-kokoro-onnx>=0.4
 soundfile>=0.12
 numpy>=1.24
+requests>=2.28
+
+# Step 1: TTS_ENGINE=aivisspeech (既定)
+# AivisSpeech EngineはPythonパッケージではなく別プロセスで起動する
+# (エンジン本体をダウンロードして実行するだけ。pip installは不要)
+# 参考: https://aivis-project.com/
+
+# Step 1: TTS_ENGINE=kokoro (代替エンジン)
+kokoro-onnx>=0.4
 
 # Step 2 (KokoClone 声質変換) に必要なもの
 # kokoclone リポジトリの requirements.txt で別途インストール:

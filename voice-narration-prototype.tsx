@@ -68,6 +68,7 @@ function mapChapter(c) {
     draftStatus: c.draft_status,
     draftAudioUrl: toAbsoluteUrl(c.draft_audio_url),
     draftSourceBody: c.draft_source_body,
+    draftSource: c.draft_source, // "tts" | "recording" | null
     finalStatus: c.final_status,
     finalAudioUrl: toAbsoluteUrl(c.final_audio_url),
     error: c.error,
@@ -295,6 +296,133 @@ function UploadModal({ onClose, onSave }) {
   );
 }
 
+// ----- 章の下書き音声モーダル(本人による実録音 or 音声ファイルのアップロード) -----
+// Step1をTTS合成に頼らず、本人が現在の声で読み上げた録音をそのまま下書きにできる。
+// 声質変換(Step2)はどちらの下書きに対しても同じように使える。
+function ChapterDraftModal({ onClose, onSave }) {
+  const [recording, setRecording] = useState(false);
+  const [duration, setDuration] = useState(0);
+  const [audioUrl, setAudioUrl] = useState(null);
+  const [audioBlobOrFile, setAudioBlobOrFile] = useState(null);
+  const [fileName, setFileName] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
+  const mediaRecorderRef = useRef(null);
+  const chunksRef = useRef([]);
+  const timerRef = useRef(null);
+  const fileRef = useRef(null);
+
+  const startRecording = async () => {
+    setError(null);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mr = new MediaRecorder(stream);
+      mediaRecorderRef.current = mr;
+      chunksRef.current = [];
+      mr.ondataavailable = (e) => chunksRef.current.push(e.data);
+      mr.onstop = () => {
+        const blob = new Blob(chunksRef.current, { type: 'audio/webm' });
+        setAudioBlobOrFile(blob);
+        setFileName('recording.webm');
+        setAudioUrl(URL.createObjectURL(blob));
+        stream.getTracks().forEach((t) => t.stop());
+      };
+      mr.start();
+      setRecording(true);
+      setDuration(0);
+      timerRef.current = setInterval(() => setDuration((d) => d + 1), 1000);
+    } catch (err) {
+      setError('マイクにアクセスできませんでした。ブラウザの権限設定を確認してください。');
+    }
+  };
+
+  const stopRecording = () => {
+    mediaRecorderRef.current?.stop();
+    clearInterval(timerRef.current);
+    setRecording(false);
+  };
+
+  useEffect(() => () => clearInterval(timerRef.current), []);
+
+  const handleFile = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setAudioBlobOrFile(file);
+    setFileName(file.name);
+    setAudioUrl(URL.createObjectURL(file));
+    setError(null);
+  };
+
+  const reset = () => { setAudioUrl(null); setAudioBlobOrFile(null); setFileName(null); setDuration(0); };
+
+  const canSave = audioBlobOrFile && !saving;
+
+  const handleSave = async () => {
+    setSaving(true);
+    setError(null);
+    try {
+      await onSave({ audioBlobOrFile, fileName: fileName || 'recording.webm' });
+    } catch (err) {
+      setError(err.message || '保存に失敗しました');
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div style={styles.overlay} onClick={onClose}>
+      <div style={styles.modal} onClick={(e) => e.stopPropagation()}>
+        <div style={styles.modalHeader}>
+          <h3 style={styles.modalTitle}>本人の声で読み上げた録音を使う</h3>
+          <button onClick={onClose} style={styles.iconBtn}><X size={18} /></button>
+        </div>
+        <p style={{ fontSize: 12.5, color: '#6B6356', margin: '0 0 14px', lineHeight: 1.6 }}>
+          この章の本文を、本人が現在の声で読み上げてください。TTS合成を使わないため、
+          読み上げの自然さがそのまま活きます。声質変換(Step2)で年代の声に仕上げられます。
+        </p>
+
+        {!audioUrl ? (
+          <>
+            <div style={styles.recordArea}>
+              <button
+                onClick={recording ? stopRecording : startRecording}
+                style={{ ...styles.recordBtn, background: recording ? '#8C3B2E' : '#2B2724' }}
+              >
+                {recording ? <Square size={22} fill="white" /> : <Mic size={22} />}
+              </button>
+              <div style={styles.recordStatus}>
+                {recording ? `録音中... ${formatTime(duration)}` : '録音を開始するにはタップ'}
+              </div>
+            </div>
+
+            <div style={{ textAlign: 'center', fontSize: 11.5, color: '#8A8273', margin: '10px 0' }}>または</div>
+
+            <input ref={fileRef} type="file" accept="audio/*" onChange={handleFile} style={{ display: 'none' }} />
+            <button onClick={() => fileRef.current?.click()} style={styles.uploadBtn}>
+              <Upload size={16} />
+              録音済みファイルをアップロード
+            </button>
+          </>
+        ) : (
+          <div style={styles.recordedPreview}>
+            <audio controls src={audioUrl} style={{ width: '100%' }} />
+            <button onClick={reset} style={styles.linkBtn}>録り直す・選び直す</button>
+          </div>
+        )}
+
+        {error && <div style={styles.errorText}>{error}</div>}
+
+        <button
+          disabled={!canSave}
+          onClick={handleSave}
+          style={{ ...styles.primaryBtn, opacity: canSave ? 1 : 0.4, cursor: canSave ? 'pointer' : 'not-allowed' }}
+        >
+          {saving ? 'アップロード中...' : 'この録音を下書きにする'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ----- 声紋カード(カセットテープ風) -----
 function VoiceProfileCard({ profile, colorKey, onDelete, playingId, onTogglePlay }) {
   const c = ERA_COLORS[colorKey];
@@ -334,12 +462,13 @@ function VoiceProfileCard({ profile, colorKey, onDelete, playingId, onTogglePlay
 }
 
 // ----- 章カード(2段階: 読み上げ生成 → 声で仕上げる) -----
-function ChapterCard({ chapter, voiceProfiles, onUpdate, onDelete, onGenerateDraft, onApplyVoice, playingChapterId, onTogglePlay }) {
+function ChapterCard({ chapter, voiceProfiles, onUpdate, onDelete, onGenerateDraft, onOpenDraftUpload, onApplyVoice, playingChapterId, onTogglePlay }) {
   const profile = voiceProfiles.find((p) => p.id === chapter.voiceProfileId);
   const isPlayingDraft = playingChapterId === `draft-${chapter.id}`;
   const isPlayingFinal = playingChapterId === `final-${chapter.id}`;
   const hasDraft = chapter.draftStatus === 'done';
   const bodyChangedSinceDraft = hasDraft && chapter.draftSourceBody !== chapter.body;
+  const isRecordingDraft = chapter.draftSource === 'recording';
 
   return (
     <div style={styles.chapterCard}>
@@ -363,22 +492,27 @@ function ChapterCard({ chapter, voiceProfiles, onUpdate, onDelete, onGenerateDra
         rows={4}
       />
 
-      {/* Step 1: 読み上げ生成(声紋非依存の下書き音声) */}
+      {/* Step 1: 下書き音声を用意する(声紋非依存) */}
       <div style={styles.stepBlock}>
         <div style={styles.stepHeader}>
           <span style={styles.stepNumber}>1</span>
-          <span style={styles.stepLabel}>読み上げ生成</span>
-          <span style={styles.stepHint}>素のTTSでテキストを音声化(声質はまだ本人ではありません)</span>
+          <span style={styles.stepLabel}>下書き音声を用意する</span>
+          <span style={styles.stepHint}>本人の実録音、またはTTS合成(声質はまだ年代の声ではありません)</span>
         </div>
 
         {chapter.draftStatus === 'idle' && (
-          <button
-            disabled={!chapter.body.trim()}
-            onClick={() => onGenerateDraft(chapter.id)}
-            style={{ ...styles.stepBtn, opacity: !chapter.body.trim() ? 0.4 : 1, cursor: !chapter.body.trim() ? 'not-allowed' : 'pointer' }}
-          >
-            読み上げを生成
-          </button>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <button onClick={() => onOpenDraftUpload(chapter.id)} style={styles.stepBtn}>
+              本人の声で録音/アップロード
+            </button>
+            <button
+              disabled={!chapter.body.trim()}
+              onClick={() => onGenerateDraft(chapter.id)}
+              style={{ ...styles.stepBtnOutline, opacity: !chapter.body.trim() ? 0.4 : 1, cursor: !chapter.body.trim() ? 'not-allowed' : 'pointer' }}
+            >
+              TTSで読み上げを生成
+            </button>
+          </div>
         )}
         {chapter.draftStatus === 'generating' && (
           <div style={styles.generatingChip}>
@@ -391,9 +525,16 @@ function ChapterCard({ chapter, voiceProfiles, onUpdate, onDelete, onGenerateDra
             <button onClick={() => onTogglePlay(`draft-${chapter.id}`)} style={{ ...styles.playDoneBtn, background: '#8A8273' }}>
               {isPlayingDraft ? <Pause size={14} /> : <Play size={14} />}
             </button>
-            <span style={styles.doneLabelMuted}><Check size={12} /> 下書き音声あり</span>
+            <span style={styles.doneLabelMuted}>
+              <Check size={12} /> {isRecordingDraft ? '本人録音あり' : 'TTS下書きあり'}
+            </span>
             {bodyChangedSinceDraft && (
-              <button onClick={() => onGenerateDraft(chapter.id)} style={styles.regenLink}>本文が変更されました・再生成</button>
+              <button
+                onClick={() => (isRecordingDraft ? onOpenDraftUpload(chapter.id) : onGenerateDraft(chapter.id))}
+                style={styles.regenLink}
+              >
+                本文が変更されました・{isRecordingDraft ? '録音をやり直す' : '再生成'}
+              </button>
             )}
             <audio
               id={`audio-draft-${chapter.id}`}
@@ -473,6 +614,7 @@ export default function VoiceNarrationApp() {
   const [chapters, setChapters] = useState([]);
   const [showRecordModal, setShowRecordModal] = useState(false);
   const [showUploadModal, setShowUploadModal] = useState(false);
+  const [draftModalChapterId, setDraftModalChapterId] = useState(null);
   const [playingProfileId, setPlayingProfileId] = useState(null);
   const [playingChapterId, setPlayingChapterId] = useState(null);
   const [loadError, setLoadError] = useState(null);
@@ -633,7 +775,7 @@ export default function VoiceNarrationApp() {
     }
   };
 
-  // Step 1: 読み上げ生成(Kokoroによる素のTTS)をバックエンドに依頼
+  // Step 1(TTS版): 素のTTSによる読み上げ生成をバックエンドに依頼
   const generateDraft = async (id) => {
     updateChapter(id, { draftStatus: 'generating' });
     try {
@@ -642,6 +784,21 @@ export default function VoiceNarrationApp() {
     } catch (err) {
       updateChapter(id, { draftStatus: 'failed', error: err.message });
     }
+  };
+
+  // Step 1(本人録音版): 本人が読み上げた録音をそのまま下書きとしてアップロード
+  const uploadChapterDraft = async ({ audioBlobOrFile, fileName }) => {
+    const chapterId = draftModalChapterId;
+    if (!chapterId) return;
+    const formData = new FormData();
+    formData.append('audio', audioBlobOrFile, fileName);
+
+    const updated = await apiFetch(`/api/chapters/${chapterId}/upload-draft`, {
+      method: 'POST',
+      body: formData,
+    });
+    updateChapter(chapterId, mapChapter(updated));
+    setDraftModalChapterId(null);
   };
 
   // Step 2: 声紋ベクトルで肉付け(KokoClone/Kanadeによる声質変換)をバックエンドに依頼
@@ -752,6 +909,7 @@ export default function VoiceNarrationApp() {
                     onUpdate={persistChapterUpdate}
                     onDelete={deleteChapter}
                     onGenerateDraft={generateDraft}
+                    onOpenDraftUpload={setDraftModalChapterId}
                     onApplyVoice={applyVoice}
                     playingChapterId={playingChapterId}
                     onTogglePlay={togglePlayChapter}
@@ -769,6 +927,9 @@ export default function VoiceNarrationApp() {
 
       {showRecordModal && <RecordModal onClose={() => setShowRecordModal(false)} onSave={addVoiceProfile} />}
       {showUploadModal && <UploadModal onClose={() => setShowUploadModal(false)} onSave={addVoiceProfile} />}
+      {draftModalChapterId && (
+        <ChapterDraftModal onClose={() => setDraftModalChapterId(null)} onSave={uploadChapterDraft} />
+      )}
     </div>
   );
 }
@@ -957,6 +1118,10 @@ const styles = {
   stepHint: { fontSize: 11, color: '#8A8273' },
   stepBtn: {
     background: '#2B2724', color: 'white', border: 'none',
+    borderRadius: 100, padding: '8px 16px', fontSize: 12.5, fontWeight: 600, cursor: 'pointer',
+  },
+  stepBtnOutline: {
+    background: 'transparent', color: '#2B2724', border: '1px solid #2B2724',
     borderRadius: 100, padding: '8px 16px', fontSize: 12.5, fontWeight: 600,
   },
   doneLabelMuted: { fontSize: 11.5, color: '#6B6356', display: 'flex', alignItems: 'center', gap: 4, fontWeight: 600 },

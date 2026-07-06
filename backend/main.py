@@ -2,17 +2,21 @@
 声の記憶帳 - バックエンドAPIサーバー
 
 設計:
-  Step 1 (読み上げ生成): テキスト → Kokoro(素のTTS、固定ボイス) → 下書き音声
+  Step 1 (読み上げ生成): 下書き音声を2通りの方法で用意できる
+    - TTS合成: テキスト → AivisSpeech/Kokoro(固定ボイス) → 下書き音声
+    - 本人録音: 本人が現在の声で読み上げた録音をそのままアップロード → 下書き音声
+    どちらの場合も、下書き音声は声紋非依存(まだ本人の過去の声にはなっていない)。
   Step 2 (声で仕上げる): 下書き音声 + 声紋(参照音声) → KokoClone/Kanade(声質変換) → 最終音声
 
 実行方法:
   pip install -r requirements.txt
-  python setup_models.py           (初回のみ: モデルファイルをダウンロード)
+  python setup_models.py           (初回のみ: Kokoro使用時のみモデルファイルをダウンロード)
   git clone https://github.com/Ashish-Patnaik/kokoclone.git  (Step2用)
   cd kokoclone && pip install -r requirements.txt && cd ..
   uvicorn main:app --reload --port 8000
 """
 
+import io
 import os
 import sys
 import logging
@@ -22,6 +26,7 @@ from pathlib import Path
 from typing import Optional, Literal
 
 import numpy as np
+import requests
 import soundfile as sf
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
@@ -104,9 +109,15 @@ class ChapterOut(BaseModel):
     draft_status: Literal["idle", "generating", "done", "failed"]
     draft_audio_url: Optional[str] = None
     draft_source_body: Optional[str] = None
+    draft_source: Optional[Literal["tts", "recording"]] = None
     final_status: Literal["idle", "generating", "done", "failed"]
     final_audio_url: Optional[str] = None
     error: Optional[str] = None
+
+
+def _chapter_out(chapter: dict) -> ChapterOut:
+    # draft_audio_path は内部管理用(実ファイルパス)なのでレスポンスからは除く
+    return ChapterOut(**{k: v for k, v in chapter.items() if k != "draft_audio_path"})
 
 
 class ApplyVoiceRequest(BaseModel):
@@ -114,7 +125,12 @@ class ApplyVoiceRequest(BaseModel):
 
 
 # ============================================================
-# Step 1: Kokoro による素のTTS(読み上げ生成)
+# Step 1: TTS合成による下書き音声生成(読み上げ生成)
+#
+# TTS_ENGINE環境変数でエンジンを切り替え可能:
+#   "aivisspeech" (既定) - 日本語特化・CPU動作可・LGPL-3.0で商用利用可
+#                          事前にAivisSpeech Engineを別途起動しておくこと
+#   "kokoro"              - 多言語対応・Apache 2.0
 # ============================================================
 
 _kokoro_instance = None
@@ -172,16 +188,73 @@ def run_kokoro_tts(text: str, output_path: Path) -> None:
     sf.write(str(output_path), combined, sample_rate)
 
 
+def run_aivisspeech_tts(text: str, output_path: Path) -> None:
+    """
+    AivisSpeech Engine(VOICEVOX互換HTTP API)を使ってTTSを行う。
+    事前にエンジンを起動しておくこと(既定 http://localhost:10101)。
+
+    話者(speaker_id)は必ずCC0またはACML(商用可)ライセンスの音声モデルを選ぶこと。
+    ACML-NC(非商用限定)のモデルは商用利用可能な構成を保つ方針に反するため使わない。
+    """
+    base_url = os.environ.get("AIVISSPEECH_BASE_URL", "http://localhost:10101")
+    speaker_id = int(os.environ.get("AIVISSPEECH_SPEAKER_ID", "888753760"))
+
+    sentences = _split_sentences(text)
+    if not sentences:
+        raise ValueError("読み上げるテキストが空です")
+
+    all_samples = []
+    sample_rate = None
+
+    for sentence in sentences:
+        query_res = requests.post(
+            f"{base_url}/audio_query",
+            params={"text": sentence, "speaker": speaker_id},
+            timeout=30,
+        )
+        query_res.raise_for_status()
+        query = query_res.json()
+
+        synth_res = requests.post(
+            f"{base_url}/synthesis",
+            params={"speaker": speaker_id},
+            headers={"Content-Type": "application/json"},
+            json=query,
+            timeout=60,
+        )
+        synth_res.raise_for_status()
+
+        samples, sr = sf.read(io.BytesIO(synth_res.content))
+        sample_rate = sr
+        all_samples.append(samples)
+        all_samples.append(np.zeros(int(sr * 0.3), dtype=np.float32))
+
+    combined = np.concatenate(all_samples)
+    sf.write(str(output_path), combined, sample_rate)
+
+
+def run_tts(text: str, output_path: Path) -> None:
+    engine = os.environ.get("TTS_ENGINE", "aivisspeech")
+    if engine == "aivisspeech":
+        run_aivisspeech_tts(text, output_path)
+    elif engine == "kokoro":
+        run_kokoro_tts(text, output_path)
+    else:
+        raise ValueError(f"未対応のTTS_ENGINEです: {engine}(aivisspeech または kokoro を指定)")
+
+
 def process_draft_generation(chapter_id: str):
     chapter = chapters_db.get(chapter_id)
     if not chapter:
         return
     try:
         output_path = DRAFT_AUDIO_DIR / f"{chapter_id}.wav"
-        run_kokoro_tts(chapter["body"], output_path)
+        run_tts(chapter["body"], output_path)
         chapter["draft_status"] = "done"
         chapter["draft_audio_url"] = f"/files/draft_audio/{output_path.name}"
+        chapter["draft_audio_path"] = str(output_path)
         chapter["draft_source_body"] = chapter["body"]
+        chapter["draft_source"] = "tts"
         # 本文を元に作り直した下書きなので、古い最終音声は無効化する
         chapter["final_status"] = "idle"
         chapter["final_audio_url"] = None
@@ -237,7 +310,7 @@ def process_voice_application(chapter_id: str, voice_profile_id: str):
     if not chapter or not profile:
         return
     try:
-        source_path = DRAFT_AUDIO_DIR / f"{chapter_id}.wav"
+        source_path = Path(chapter["draft_audio_path"])
         reference_path = Path(profile["audio_path"])
         output_path = FINAL_AUDIO_DIR / f"{chapter_id}_{voice_profile_id}.wav"
 
@@ -324,18 +397,20 @@ async def create_chapter(payload: ChapterCreate):
         "voice_profile_id": None,
         "draft_status": "idle",
         "draft_audio_url": None,
+        "draft_audio_path": None,
         "draft_source_body": None,
+        "draft_source": None,
         "final_status": "idle",
         "final_audio_url": None,
         "error": None,
     }
     chapters_db[chapter_id] = chapter
-    return ChapterOut(**chapter)
+    return _chapter_out(chapter)
 
 
 @app.get("/api/chapters", response_model=list[ChapterOut])
 async def list_chapters():
-    return [ChapterOut(**c) for c in chapters_db.values()]
+    return [_chapter_out(c) for c in chapters_db.values()]
 
 
 @app.patch("/api/chapters/{chapter_id}", response_model=ChapterOut)
@@ -349,7 +424,7 @@ async def update_chapter(chapter_id: str, payload: ChapterUpdate):
         chapter["body"] = payload.body
     if payload.voice_profile_id is not None:
         chapter["voice_profile_id"] = payload.voice_profile_id
-    return ChapterOut(**chapter)
+    return _chapter_out(chapter)
 
 
 @app.delete("/api/chapters/{chapter_id}")
@@ -374,6 +449,35 @@ async def generate_draft(chapter_id: str, background_tasks: BackgroundTasks):
     return {"accepted": True}
 
 
+@app.post("/api/chapters/{chapter_id}/upload-draft", response_model=ChapterOut)
+async def upload_draft(chapter_id: str, audio: UploadFile = File(...)):
+    """
+    本人が現在の声で読み上げた録音を、下書き音声としてそのまま登録する。
+    TTS合成を経由しないため、ナレーションの自然さが最初から保証される。
+    Step2(声質変換)は通常のTTS下書きと同じ扱いで適用できる。
+    """
+    chapter = chapters_db.get(chapter_id)
+    if not chapter:
+        raise HTTPException(status_code=404, detail="章が見つかりません")
+
+    ext = Path(audio.filename).suffix or ".wav"
+    output_path = DRAFT_AUDIO_DIR / f"{chapter_id}{ext}"
+
+    with output_path.open("wb") as f:
+        shutil.copyfileobj(audio.file, f)
+
+    chapter["draft_status"] = "done"
+    chapter["draft_audio_url"] = f"/files/draft_audio/{output_path.name}"
+    chapter["draft_audio_path"] = str(output_path)
+    chapter["draft_source_body"] = chapter["body"]
+    chapter["draft_source"] = "recording"
+    chapter["error"] = None
+    # 下書きが差し替わったので、古い最終音声は無効化する
+    chapter["final_status"] = "idle"
+    chapter["final_audio_url"] = None
+    return _chapter_out(chapter)
+
+
 @app.post("/api/chapters/{chapter_id}/apply-voice", status_code=202)
 async def apply_voice(chapter_id: str, payload: ApplyVoiceRequest, background_tasks: BackgroundTasks):
     chapter = chapters_db.get(chapter_id)
@@ -395,7 +499,7 @@ async def get_chapter_status(chapter_id: str):
     chapter = chapters_db.get(chapter_id)
     if not chapter:
         raise HTTPException(status_code=404, detail="章が見つかりません")
-    return ChapterOut(**chapter)
+    return _chapter_out(chapter)
 
 
 @app.get("/")
