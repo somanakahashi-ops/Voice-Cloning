@@ -46,9 +46,9 @@
   - AivisSpeech Engine 1.2.0は`C:\Users\porup\aivisspeech-engine\Windows-x64\run.exe`に導入済み(port 10101)
 - [x] **フルテキスト(第一章4文)版も生成**(2026-07-07):
   - AivisSpeech2段階: `backend/storage/compare/aivis_version_full.wav`(約30秒)— 完成
-  - Irodori: フルテキスト一括生成は**2回連続で無言クラッシュ(exit 4)**。DACVAEコーデックのロード直後に落ちる(空きRAM約6GBでのロード/推論OOMと推定)。→ **回避策: 2文ずつ分割生成**。前半=既存`irodori_version.wav`(冒頭2文と同一)、後半2文=`C:\Users\porup\irodori-tts\outputs\irodori_part_b.wav`として生成成功(CPU約219秒)
-  - **次の作業**: part A+Bを0.3秒ギャップで結合し`backend/storage/compare/irodori_version_full.wav`を作成(サンプルレート差に注意: 出力44.1kHz/48kHz混在の可能性、要確認)。結合スクリプト未実行のまま中断中
-- [ ] ユーザーの聴き比べ → 経路Bの方式決定(AivisSpeech2段階 vs Irodoriワンショット)
+  - Irodori: フルテキスト一括生成は**2回連続で無言クラッシュ(exit 4)**。DACVAEコーデックのロード直後に落ちる(空きRAM約6GBでのロード/推論OOMと推定)。→ **回避策: 2文ずつ分割生成**。前半=既存`irodori_version.wav`(冒頭2文と同一)、後半2文=生成成功(CPU約219秒)
+  - 前後半を0.3秒ギャップで結合し `backend/storage/compare/irodori_version_full.wav` を作成済み(48kHz、35.3秒)。**このマシンでIrodoriの長文を扱うには2文程度ずつの分割生成が必須**
+- [ ] **ユーザーの聴き比べ → 経路Bの方式決定**(AivisSpeech2段階 vs Irodoriワンショット)。材料は`backend/storage/compare/`に揃った: 短尺=`aivis_version.wav`(12.2秒)/`irodori_version.wav`(14.1秒)、フル=`aivis_version_full.wav`(約30秒)/`irodori_version_full.wav`(35.3秒)
 - [ ] `TTS_ENGINE=irodori`の実装(経路Bの単体構成化)は**聴き比べの結果待ち**(ユーザー判断)
 
 ## 未着手・保留
