@@ -8,10 +8,22 @@ from pathlib import Path
 
 sys.path.insert(0, "kokoclone")
 
+import argparse
+
+_parser = argparse.ArgumentParser()
+_parser.add_argument("--full", action="store_true", help="第一章のフルテキストで生成")
+_args = _parser.parse_args()
+
 TEXT_SENTENCES = [
     "予定日よりもずいぶん遅れて生まれたそうなんです。",
     "母のお腹がはち切れそうになってもなかなか出てこなくて、家族みんながヤキモキしながら待っていたと聞きました。",
 ]
+if _args.full:
+    TEXT_SENTENCES += [
+        "ようやく生まれた時は、病院に親戚中が集まって大喜びしてくれたみたいです。",
+        "のんびり屋というか、マイペースな性格はこの時に決まったのかもしれませんが、せっかちな建築現場の仕事をやっているのは、なんだか不思議な縁ですね。",
+    ]
+OUT_SUFFIX = "_full" if _args.full else ""
 SPEAKER_ID = 888753760
 BASE_URL = "http://127.0.0.1:10101"
 REF_WAV = "storage/voice_profiles/08806a0c-92c6-4f0f-9432-1da443dc4818.wav"
@@ -29,13 +41,13 @@ for s in TEXT_SENTENCES:
     parts.append(d.astype(np.float32))
     parts.append(np.zeros(int(sr * 0.3), dtype=np.float32))
 
-draft_path = OUT_DIR / "aivis_draft.wav"
+draft_path = OUT_DIR / f"aivis_draft{OUT_SUFFIX}.wav"
 sf.write(str(draft_path), np.concatenate(parts), sr)
 print(f"draft OK: {draft_path}")
 
 # --- Step B-2: KokoCloneで声紋Aに変換 ---
 from core.cloner import KokoClone
 cloner = KokoClone()
-out_path = OUT_DIR / "aivis_version.wav"
+out_path = OUT_DIR / f"aivis_version{OUT_SUFFIX}.wav"
 cloner.convert(source_audio=str(draft_path), reference_audio=REF_WAV, output_path=str(out_path))
 print(f"final OK: {out_path}")
