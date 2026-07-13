@@ -572,3 +572,11 @@ async def list_listening_audio():
 @app.get("/")
 async def root():
     return {"status": "ok", "service": "voice-narration-backend"}
+
+
+# ビルド済みフロントエンド(frontend/dist)があれば http://localhost:8000/app/ で配信する。
+# これで常駐バックエンドだけ動いていれば、npm run dev なしでUIにアクセスできる。
+# 反映するには frontend で `npm run build` が必要(vite.config.jsのbaseは相対パス)。
+FRONTEND_DIST = BASE_DIR.parent / "frontend" / "dist"
+if FRONTEND_DIST.is_dir():
+    app.mount("/app", StaticFiles(directory=str(FRONTEND_DIST), html=True), name="frontend")

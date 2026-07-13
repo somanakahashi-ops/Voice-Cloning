@@ -67,6 +67,16 @@
 - Kokoroモデルファイル: `backend\models\` にダウンロード済み(kokoro使用時の代替エンジン用)
 - KokoClone: `backend\kokoclone\` にclone済み
 
+## バックエンドの常駐化(2026-07-14)
+
+- **ログオン時にAPIサーバーが自動起動**する(Windowsタスクスケジューラ: `VoiceCloningBackend`)
+  - スクリプト: `C:\Users\porup\scripts\voice-cloning-backend.ps1`(監視ループ。uvicornが落ちたら15秒後に自動再起動、二重起動はポート8000チェックで防止)— 動作検証済み(kill→自動復活を確認)
+  - ログ: `C:\Users\porup\scripts\voice-cloning-backend-log.txt`(イベント)、`-out.log`/`-err.log`(uvicorn出力、5MB超で自動クリア)
+  - 停止したいとき: `schtasks /End /TN VoiceCloningBackend` の後、残ったpython.exeをタスクマネージャ等で終了
+- **ビルド済みフロントを `/app` で配信**: バックエンドさえ動いていれば **http://localhost:8000/app/** でUI(記憶帳+試聴室)にアクセスできる(`npm run dev`不要)
+  - `frontend/dist`があるときだけマウントされる。**UIを変更したら `cd frontend && npm run build` で反映**
+  - `vite.config.js`のbaseを相対パス(`./`)に変更済み — GitHub Pagesと`/app`配信で同じビルドが動く
+
 ## Git自動化
 
 1. **平日18時までの自動sync**(Windowsタスクスケジューラ: `VoiceCloningAutoSync`)
