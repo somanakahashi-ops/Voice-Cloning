@@ -2,46 +2,53 @@ import { useEffect, useState } from 'react';
 import { API_BASE } from './VoiceNarrationApp';
 
 // 聴き比べ音声(backend/storage/compare)の既知ファイルの表示情報。
+// キーは拡張子なしのファイル名(ローカルは.wav、公開ページは.mp3のため)。
 // 未知のファイルはファイル名のまま末尾に表示される。
 const COMPARE_INFO = {
-  'irodori_version.wav': {
+  irodori_version: {
     title: 'Irodori ワンショット — 冒頭2文',
     note: 'テキスト+声紋Aの参照音声から直接生成(採用方式)',
     adopted: true,
   },
-  'aivis_version.wav': {
+  aivis_version: {
     title: 'AivisSpeech 2段階 — 冒頭2文',
     note: 'AivisSpeech(話者まお)で下書き → KokoCloneで声紋Aへ変換',
   },
-  'irodori_version_full.wav': {
+  irodori_version_full: {
     title: 'Irodori ワンショット — 第一章フル',
     note: '前半・後半を分割生成して結合(採用方式)',
     adopted: true,
   },
-  'aivis_version_full.wav': {
+  aivis_version_full: {
     title: 'AivisSpeech 2段階 — 第一章フル',
     note: 'AivisSpeech(話者まお)で下書き → KokoCloneで声紋Aへ変換',
   },
-  'aivis_draft.wav': {
+  aivis_draft: {
     title: 'AivisSpeech下書き — 冒頭2文(変換前)',
     note: '声質変換前の素のTTS音声(話者まお)。比較の参考用',
   },
-  'aivis_draft_full.wav': {
+  aivis_draft_full: {
     title: 'AivisSpeech下書き — 第一章フル(変換前)',
     note: '声質変換前の素のTTS音声(話者まお)。比較の参考用',
   },
 };
 const COMPARE_ORDER = Object.keys(COMPARE_INFO);
 
+function stemOf(name) {
+  return name.replace(/\.[^.]+$/, '');
+}
+
 function sortCompare(items) {
   return [...items].sort((a, b) => {
-    const ia = COMPARE_ORDER.indexOf(a.name);
-    const ib = COMPARE_ORDER.indexOf(b.name);
+    const ia = COMPARE_ORDER.indexOf(stemOf(a.name));
+    const ib = COMPARE_ORDER.indexOf(stemOf(b.name));
     return (ia === -1 ? 999 : ia) - (ib === -1 ? 999 : ib);
   });
 }
 
 function AudioCard({ title, note, seconds, url, adopted }) {
+  // "/files/..."はバックエンド配信、"./listening/..."は公開ページ同梱の静的音声
+  const src = url.startsWith('/') ? `${API_BASE}${url}` : url;
   return (
     <div style={styles.card}>
       <div style={styles.cardHead}>
@@ -50,7 +57,7 @@ function AudioCard({ title, note, seconds, url, adopted }) {
         {seconds != null && <span style={styles.cardMeta}>{seconds}秒</span>}
       </div>
       {note && <p style={styles.cardNote}>{note}</p>}
-      <audio controls preload="none" src={`${API_BASE}${url}`} style={{ width: '100%' }} />
+      <audio controls preload="none" src={src} style={{ width: '100%' }} />
     </div>
   );
 }
@@ -58,20 +65,26 @@ function AudioCard({ title, note, seconds, url, adopted }) {
 export default function ListeningRoom() {
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
+  const [staticMode, setStaticMode] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
-    fetch(`${API_BASE}/api/listening`)
-      .then((res) => {
-        if (!res.ok) throw new Error(`リクエストに失敗しました(${res.status})`);
-        return res.json();
-      })
+    const fetchJson = (url) => fetch(url).then((res) => {
+      if (!res.ok) throw new Error(`リクエストに失敗しました(${res.status})`);
+      return res.json();
+    });
+    // バックエンドがあればそこから、なければ(GitHub Pages等)同梱の静的マニフェストから読む
+    fetchJson(`${API_BASE}/api/listening`)
       .then((json) => { if (!cancelled) setData(json); })
-      .catch(() => {
-        if (!cancelled) {
-          setError('バックエンドに接続できません。試聴はローカルでAPIサーバー(uvicorn)を起動している場合のみ可能です。');
-        }
-      });
+      .catch(() => fetchJson('./listening/manifest.json')
+        .then((json) => {
+          if (!cancelled) { setData(json); setStaticMode(true); }
+        })
+        .catch(() => {
+          if (!cancelled) {
+            setError('バックエンドに接続できません。試聴はローカルでAPIサーバー(uvicorn)を起動している場合のみ可能です。');
+          }
+        }));
     return () => { cancelled = true; };
   }, []);
 
@@ -93,6 +106,11 @@ export default function ListeningRoom() {
       <main style={{ ...styles.inner, padding: '28px 20px 0' }}>
         {error && <div style={styles.connectionError}>{error}</div>}
         {!error && !data && <p style={styles.loading}>読み込み中…</p>}
+        {staticMode && (
+          <div style={styles.staticNote}>
+            公開デモ版です。事前に生成した音声のみ掲載しています(生成機能はローカル環境で動作します)。
+          </div>
+        )}
 
         {data && (
           <>
@@ -103,7 +121,7 @@ export default function ListeningRoom() {
               </p>
               {compare.length === 0 && <p style={styles.empty}>聴き比べ音声はまだありません。</p>}
               {compare.map((item) => {
-                const info = COMPARE_INFO[item.name] || { title: item.name };
+                const info = COMPARE_INFO[stemOf(item.name)] || { title: item.name };
                 return <AudioCard key={item.name} {...info} seconds={item.seconds} url={item.url} />;
               })}
             </section>
@@ -171,6 +189,16 @@ const styles = {
     marginBottom: 20,
   },
   loading: { fontSize: 13, color: '#8A8273' },
+  staticNote: {
+    background: '#EFE6D2',
+    color: '#6B5A33',
+    border: '1px solid #D8C9A3',
+    borderRadius: 10,
+    padding: '10px 14px',
+    fontSize: 12.5,
+    lineHeight: 1.6,
+    marginBottom: 20,
+  },
   sectionTitle: {
     fontFamily: "'Shippori Mincho', serif",
     fontSize: 19,

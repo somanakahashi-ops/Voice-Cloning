@@ -19,7 +19,9 @@
 import io
 import os
 import sys
+import json
 import logging
+import subprocess
 import uuid
 import shutil
 from pathlib import Path
@@ -79,6 +81,39 @@ app.mount("/files", StaticFiles(directory=str(STORAGE_DIR)), name="files")
 
 voice_profiles_db = {}   # id -> dict
 chapters_db = {}         # id -> dict
+
+# サーバー再起動で登録内容(声紋・章)が消えないよう、変更のたびにJSONへ保存し起動時に読み戻す
+STATE_PATH = STORAGE_DIR / "state.json"
+
+
+def _save_state() -> None:
+    tmp = STATE_PATH.with_suffix(".json.tmp")
+    tmp.write_text(
+        json.dumps({"voice_profiles": voice_profiles_db, "chapters": chapters_db}, ensure_ascii=False, indent=1),
+        encoding="utf-8",
+    )
+    tmp.replace(STATE_PATH)
+
+
+def _load_state() -> None:
+    if not STATE_PATH.exists():
+        return
+    try:
+        state = json.loads(STATE_PATH.read_text(encoding="utf-8"))
+    except Exception:
+        logger.exception("state.jsonの読み込みに失敗したため、空の状態で起動します")
+        return
+    voice_profiles_db.update(state.get("voice_profiles", {}))
+    chapters_db.update(state.get("chapters", {}))
+    # 前回実行中に中断された処理は失敗扱いにする(UIのスピナーが永久に回るのを防ぐ)
+    for chapter in chapters_db.values():
+        for key in ("draft_status", "final_status"):
+            if chapter.get(key) == "generating":
+                chapter[key] = "failed"
+                chapter["error"] = "サーバー再起動により処理が中断されました。もう一度実行してください。"
+
+
+_load_state()
 
 
 # ============================================================
@@ -266,6 +301,7 @@ def process_draft_generation(chapter_id: str):
     except Exception as e:
         chapter["draft_status"] = "failed"
         chapter["error"] = str(e)
+    _save_state()
 
 
 # ============================================================
@@ -327,11 +363,32 @@ def process_voice_application(chapter_id: str, voice_profile_id: str):
     except Exception as e:
         chapter["final_status"] = "failed"
         chapter["error"] = str(e)
+    _save_state()
 
 
 # ============================================================
 # 声紋API
 # ============================================================
+
+def _ensure_readable_wav(path: Path) -> Path:
+    """soundfileで読めない形式(m4a/webm等のスマホ・ブラウザ録音)をffmpegで24kHzモノラルWAVに変換する。"""
+    try:
+        sf.info(str(path))
+        return path
+    except Exception:
+        pass
+    if shutil.which("ffmpeg") is None:
+        raise HTTPException(status_code=400, detail="この音声形式を読み込めません(変換用のffmpegも見つかりません)")
+    wav_path = path.with_name(path.stem + "_conv.wav")
+    proc = subprocess.run(
+        ["ffmpeg", "-y", "-i", str(path), "-ac", "1", "-ar", "24000", str(wav_path)],
+        capture_output=True,
+    )
+    if proc.returncode != 0 or not wav_path.exists():
+        raise HTTPException(status_code=400, detail="音声の変換に失敗しました。対応形式(wav/mp3/m4a/webm等)か確認してください")
+    path.unlink(missing_ok=True)
+    return wav_path
+
 
 def _preprocess_voice_profile_audio(path: Path) -> tuple[Optional[float], str]:
     """
@@ -373,6 +430,7 @@ async def create_voice_profile(
     with saved_path.open("wb") as f:
         shutil.copyfileobj(audio.file, f)
 
+    saved_path = _ensure_readable_wav(saved_path)
     duration_sec, quality_note = _preprocess_voice_profile_audio(saved_path)
 
     profile = {
@@ -386,6 +444,7 @@ async def create_voice_profile(
         "quality_note": quality_note,
     }
     voice_profiles_db[profile_id] = profile
+    _save_state()
     return VoiceProfileOut(**{k: v for k, v in profile.items() if k != "audio_path"})
 
 
@@ -410,6 +469,7 @@ async def delete_voice_profile(profile_id: str):
         os.remove(profile["audio_path"])
     except OSError:
         pass
+    _save_state()
     return {"deleted": True}
 
 
@@ -435,6 +495,7 @@ async def create_chapter(payload: ChapterCreate):
         "error": None,
     }
     chapters_db[chapter_id] = chapter
+    _save_state()
     return _chapter_out(chapter)
 
 
@@ -454,6 +515,7 @@ async def update_chapter(chapter_id: str, payload: ChapterUpdate):
         chapter["body"] = payload.body
     if payload.voice_profile_id is not None:
         chapter["voice_profile_id"] = payload.voice_profile_id
+    _save_state()
     return _chapter_out(chapter)
 
 
@@ -462,6 +524,7 @@ async def delete_chapter(chapter_id: str):
     if chapter_id not in chapters_db:
         raise HTTPException(status_code=404, detail="章が見つかりません")
     del chapters_db[chapter_id]
+    _save_state()
     return {"deleted": True}
 
 
@@ -475,6 +538,7 @@ async def generate_draft(chapter_id: str, background_tasks: BackgroundTasks):
 
     chapter["draft_status"] = "generating"
     chapter["error"] = None
+    _save_state()
     background_tasks.add_task(process_draft_generation, chapter_id)
     return {"accepted": True}
 
@@ -496,6 +560,8 @@ async def upload_draft(chapter_id: str, audio: UploadFile = File(...)):
     with output_path.open("wb") as f:
         shutil.copyfileobj(audio.file, f)
 
+    output_path = _ensure_readable_wav(output_path)
+
     chapter["draft_status"] = "done"
     # 本人録音は配信しない(URLなし)。Step2には draft_audio_path 経由で使われる
     chapter["draft_audio_url"] = None
@@ -506,6 +572,7 @@ async def upload_draft(chapter_id: str, audio: UploadFile = File(...)):
     # 下書きが差し替わったので、古い最終音声は無効化する
     chapter["final_status"] = "idle"
     chapter["final_audio_url"] = None
+    _save_state()
     return _chapter_out(chapter)
 
 
@@ -521,6 +588,7 @@ async def apply_voice(chapter_id: str, payload: ApplyVoiceRequest, background_ta
 
     chapter["final_status"] = "generating"
     chapter["error"] = None
+    _save_state()
     background_tasks.add_task(process_voice_application, chapter_id, payload.voice_profile_id)
     return {"accepted": True}
 

@@ -14,8 +14,11 @@ const tabStyle = (active) => ({
   cursor: 'pointer',
 });
 
+// 公開ページ(GitHub Pages)ではバックエンドがなく記憶帳タブは動かないため、試聴室を初期表示にする
+const isStaticHost = typeof window !== 'undefined' && window.location.hostname.endsWith('github.io');
+
 export default function App() {
-  const [page, setPage] = useState('app');
+  const [page, setPage] = useState(isStaticHost ? 'listen' : 'app');
   return (
     <div>
       <nav

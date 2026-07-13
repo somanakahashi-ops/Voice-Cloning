@@ -1,0 +1,13 @@
+{
+  "static": true,
+  "compare": [
+    { "name": "irodori_version.mp3", "url": "./listening/irodori_version.mp3", "seconds": 14.1 },
+    { "name": "aivis_version.mp3", "url": "./listening/aivis_version.mp3", "seconds": 12.2 },
+    { "name": "irodori_version_full.mp3", "url": "./listening/irodori_version_full.mp3", "seconds": 35.3 },
+    { "name": "aivis_version_full.mp3", "url": "./listening/aivis_version_full.mp3", "seconds": 30.6 }
+  ],
+  "final": [
+    { "name": "final_voiceA.mp3", "label": "第一章「誕生」× 声紋A(本人録音25.8秒を変換)", "url": "./listening/final_voiceA.mp3", "seconds": 25.8 },
+    { "name": "final_voiceB.mp3", "label": "第一章「誕生」× 声紋B(本人録音25.8秒を変換)", "url": "./listening/final_voiceB.mp3", "seconds": 25.8 }
+  ]
+}

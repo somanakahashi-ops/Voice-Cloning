@@ -37,3 +37,7 @@ Thumbs.db
 *.webm
 *.aac
 *.flac
+
+# 公開用に選別した試聴音声だけは例外として含める(Pages試聴室の静的配信用。
+# 声紋A/Bの変換結果のみ。本人録音そのものは絶対に置かないこと)
+!frontend/public/listening/*.mp3

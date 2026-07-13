@@ -15,14 +15,19 @@
 - [x] **Step1のE2E動作確認(CPU)** — 確認済み(2026-07-06)。`TTS_ENGINE=kokoro`で日本語短文→WAV生成が約10秒以内で成功
 - [x] **Step2のE2E動作確認(CPU)** — 確認済み(2026-07-06)。声紋登録→声質変換が**モデルロード込みで約90秒**(8秒の音声、CPU)で成功。出力は24kHzの正常なWAV。**個人利用の短い章ならCPUでも実用範囲**の可能性が高い
 - [x] **フロントエンドの実行環境** — `frontend/`にVite(React)プロジェクトを作成し、`voice-narration-prototype.tsx`を`src/VoiceNarrationApp.jsx`として組み込み済み。ビルド・表示確認済み。起動: `cd frontend && npm install && npm run dev`(API_BASEはlocalhost:8000がデフォルト)
-- [x] **試聴室画面**(2026-07-14) — フロント上部のタブ「記憶帳|試聴室」で切替。`src/ListeningRoom.jsx`が`GET /api/listening`(main.pyに追加)から一覧を取得し、聴き比べ音声(storage/compare)と変換済み章音声(storage/final_audio)をブラウザ再生できる。本人録音の下書き(storage_private)は一覧にも配信にも含まれない(404確認済み)。バックエンド未起動時(GitHub Pages含む)は接続エラーバナー表示
+- [x] **試聴室画面**(2026-07-14) — フロント上部のタブ「記憶帳|試聴室」で切替。`src/ListeningRoom.jsx`が`GET /api/listening`(main.pyに追加)から一覧を取得し、聴き比べ音声(storage/compare)と変換済み章音声(storage/final_audio)をブラウザ再生できる。本人録音の下書き(storage_private)は一覧にも配信にも含まれない(404確認済み)
+- [x] **登録データの永続化**(2026-07-14) — 声紋・章を変更のたびに`backend/storage/state.json`へ保存し起動時に復元。**サーバー再起動で登録が消える問題は解消**。再起動をまたいだ復元をE2E確認済み。中断された生成はfailed扱いで復元
+- [x] **スマホ録音(m4a/webm等)の自動変換**(2026-07-14) — 声紋登録・本人録音アップロードの両方で、soundfileが読めない形式はffmpegで24kHzモノラルWAVに自動変換(`_ensure_readable_wav()`)。実m4aでE2E確認済み。手動変換は不要になった
 
 ## 公開(2026-07-07)
 
 - リポジトリを公開に変更: https://github.com/somanakahashi-ops/Voice-Cloning
 - フロントエンドUIをGitHub Pagesで公開: **https://somanakahashi-ops.github.io/Voice-Cloning/**
   - pushのたびにGitHub Actionsで自動ビルド&デプロイされる(`.github/workflows/deploy-pages.yml`)
-  - バックエンドは含まれないため、公開ページでは生成機能は動かない(接続エラーバナーが出る見た目のデモ)。実動はローカルで`uvicorn`+`npm run dev`
+  - バックエンドは含まれないため、公開ページでは生成機能は動かない。実動はローカル(常駐バックエンド+`/app`配信)
+- **公開ページでも試聴室は鳴る**(2026-07-14): 選別済み音声6本(聴き比べ4+変換結果2、計約1.7MB)をMP3化して`frontend/public/listening/`に同梱(.gitignoreに例外追加)。試聴室はAPI接続失敗時に`listening/manifest.json`へフォールバックし「公開デモ版」バナーを表示。github.ioでは試聴室タブが初期表示
+  - **含めていないもの**: 本人録音(方針どおり非公開)、変換前のAivisSpeech下書き(モデル利用規約が未確認のため保留)
+- **上司向けデモの手順書**: `DEMO.md`(常設=公開試聴室、ライブ=上司の声を声紋登録して章を読ませる流れ、事前準備・保険つき)
 
 ## 実データでの検証(2026-07-06)
 
