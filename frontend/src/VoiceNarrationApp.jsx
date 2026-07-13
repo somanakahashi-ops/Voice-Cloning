@@ -17,7 +17,7 @@ const ERA_PALETTE = ['amber', 'pine', 'ink'];
 // バックエンドAPIのベースURL。環境変数等で差し替え可能にしておく。
 // 接続先が起動していない場合、各API呼び出しはエラーをスローし、
 // 呼び出し元でユーザーに分かる形のエラーメッセージとして表示する。
-const API_BASE = (typeof process !== 'undefined' && process.env && process.env.REACT_APP_API_BASE)
+export const API_BASE = (typeof process !== 'undefined' && process.env && process.env.REACT_APP_API_BASE)
   || 'http://localhost:8000';
 
 async function apiFetch(path, options = {}) {

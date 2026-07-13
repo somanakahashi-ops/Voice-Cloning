@@ -15,6 +15,7 @@
 - [x] **Step1のE2E動作確認(CPU)** — 確認済み(2026-07-06)。`TTS_ENGINE=kokoro`で日本語短文→WAV生成が約10秒以内で成功
 - [x] **Step2のE2E動作確認(CPU)** — 確認済み(2026-07-06)。声紋登録→声質変換が**モデルロード込みで約90秒**(8秒の音声、CPU)で成功。出力は24kHzの正常なWAV。**個人利用の短い章ならCPUでも実用範囲**の可能性が高い
 - [x] **フロントエンドの実行環境** — `frontend/`にVite(React)プロジェクトを作成し、`voice-narration-prototype.tsx`を`src/VoiceNarrationApp.jsx`として組み込み済み。ビルド・表示確認済み。起動: `cd frontend && npm install && npm run dev`(API_BASEはlocalhost:8000がデフォルト)
+- [x] **試聴室画面**(2026-07-14) — フロント上部のタブ「記憶帳|試聴室」で切替。`src/ListeningRoom.jsx`が`GET /api/listening`(main.pyに追加)から一覧を取得し、聴き比べ音声(storage/compare)と変換済み章音声(storage/final_audio)をブラウザ再生できる。本人録音の下書き(storage_private)は一覧にも配信にも含まれない(404確認済み)。バックエンド未起動時(GitHub Pages含む)は接続エラーバナー表示
 
 ## 公開(2026-07-07)
 
@@ -48,8 +49,8 @@
   - AivisSpeech2段階: `backend/storage/compare/aivis_version_full.wav`(約30秒)— 完成
   - Irodori: フルテキスト一括生成は**2回連続で無言クラッシュ(exit 4)**。DACVAEコーデックのロード直後に落ちる(空きRAM約6GBでのロード/推論OOMと推定)。→ **回避策: 2文ずつ分割生成**。前半=既存`irodori_version.wav`(冒頭2文と同一)、後半2文=生成成功(CPU約219秒)
   - 前後半を0.3秒ギャップで結合し `backend/storage/compare/irodori_version_full.wav` を作成済み(48kHz、35.3秒)。**このマシンでIrodoriの長文を扱うには2文程度ずつの分割生成が必須**
-- [ ] **ユーザーの聴き比べ → 経路Bの方式決定**(AivisSpeech2段階 vs Irodoriワンショット)。材料は`backend/storage/compare/`に揃った: 短尺=`aivis_version.wav`(12.2秒)/`irodori_version.wav`(14.1秒)、フル=`aivis_version_full.wav`(約30秒)/`irodori_version_full.wav`(35.3秒)
-- [ ] `TTS_ENGINE=irodori`の実装(経路Bの単体構成化)は**聴き比べの結果待ち**(ユーザー判断)
+- [x] **経路Bの方式決定(2026-07-14、ユーザー判断)**: **Irodoriワンショットを採用**。長文対応(分割生成の作り込み)は当面不要(「とりあえず全部ワンショットでいい」)。聴き比べ材料は`backend/storage/compare/`に6ファイル(短尺/フル×draft/aivis/irodori)
+- [ ] **次の実装タスク: `TTS_ENGINE=irodori`**(経路Bの単体構成化)。Irodoriは`C:\Users\porup\irodori-tts`のuv環境でinfer.py実行(バックエンドとは別venv)。テキスト+声紋参照wavで直接最終音声が出るため、irodori時はStep2(KokoClone変換)をスキップする流れになる。重い生成の直列化(同時1件)に注意
 
 ## 未着手・保留
 

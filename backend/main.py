@@ -44,6 +44,7 @@ STORAGE_DIR = BASE_DIR / "storage"
 VOICE_PROFILES_DIR = STORAGE_DIR / "voice_profiles"
 DRAFT_AUDIO_DIR = STORAGE_DIR / "draft_audio"
 FINAL_AUDIO_DIR = STORAGE_DIR / "final_audio"
+COMPARE_DIR = STORAGE_DIR / "compare"
 MODELS_DIR = BASE_DIR / "models"
 
 KOKORO_MODEL_PATH = MODELS_DIR / "kokoro-v1.0.onnx"
@@ -530,6 +531,42 @@ async def get_chapter_status(chapter_id: str):
     if not chapter:
         raise HTTPException(status_code=404, detail="章が見つかりません")
     return _chapter_out(chapter)
+
+
+def _listening_entry(path: Path, url_prefix: str, label: Optional[str] = None) -> dict:
+    try:
+        info = sf.info(str(path))
+        seconds = round(info.frames / info.samplerate, 1)
+    except Exception:
+        seconds = None
+    return {"name": path.name, "label": label, "url": f"{url_prefix}/{path.name}", "seconds": seconds}
+
+
+@app.get("/api/listening")
+async def list_listening_audio():
+    """試聴室(フロントの試聴画面)用に、配信してよい生成音声の一覧を返す。
+
+    対象は聴き比べ音声(storage/compare)と変換済みの章音声(storage/final_audio)のみ。
+    本人録音の下書きはstorage_private配下にあり、この一覧にも/files配信にも含まれない。
+    """
+    compare = [
+        _listening_entry(f, "/files/compare")
+        for f in sorted(COMPARE_DIR.glob("*.wav")) if COMPARE_DIR.is_dir()
+    ]
+    final = []
+    if FINAL_AUDIO_DIR.is_dir():
+        for f in sorted(FINAL_AUDIO_DIR.glob("*.wav"), key=lambda p: p.stat().st_mtime, reverse=True):
+            # ファイル名は {chapter_id}_{profile_id}.wav。サーバー再起動でin-memory DBが
+            # 消えている場合は解決できないので、ラベルなし(ファイル名表示)になる
+            label = None
+            parts = f.stem.split("_")
+            if len(parts) == 2:
+                chapter = chapters_db.get(parts[0])
+                profile = voice_profiles_db.get(parts[1])
+                if chapter or profile:
+                    label = f"{chapter['title'] if chapter else '章'} × {profile['label'] if profile else '声紋'}"
+            final.append(_listening_entry(f, "/files/final_audio", label))
+    return {"compare": compare, "final": final}
 
 
 @app.get("/")
