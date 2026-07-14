@@ -54,12 +54,17 @@
   - AivisSpeech2段階: `backend/storage/compare/aivis_version_full.wav`(約30秒)— 完成
   - Irodori: フルテキスト一括生成は**2回連続で無言クラッシュ(exit 4)**。DACVAEコーデックのロード直後に落ちる(空きRAM約6GBでのロード/推論OOMと推定)。→ **回避策: 2文ずつ分割生成**。前半=既存`irodori_version.wav`(冒頭2文と同一)、後半2文=生成成功(CPU約219秒)
   - 前後半を0.3秒ギャップで結合し `backend/storage/compare/irodori_version_full.wav` を作成済み(48kHz、35.3秒)。**このマシンでIrodoriの長文を扱うには2文程度ずつの分割生成が必須**
-- [x] **経路Bの方式決定(2026-07-14、ユーザー判断)**: **Irodoriワンショットを採用**。長文対応(分割生成の作り込み)は当面不要(「とりあえず全部ワンショットでいい」)。聴き比べ材料は`backend/storage/compare/`に6ファイル(短尺/フル×draft/aivis/irodori)
-- [ ] **次の実装タスク: `TTS_ENGINE=irodori`**(経路Bの単体構成化)。Irodoriは`C:\Users\porup\irodori-tts`のuv環境でinfer.py実行(バックエンドとは別venv)。テキスト+声紋参照wavで直接最終音声が出るため、irodori時はStep2(KokoClone変換)をスキップする流れになる。重い生成の直列化(同時1件)に注意
+- [x] **経路Bの方式決定(2026-07-14、ユーザー判断)**: **Irodoriワンショットを採用**。聴き比べ材料は`backend/storage/compare/`に6ファイル(短尺/フル×draft/aivis/irodori)
+- [x] **Irodori直接生成をアプリに組み込み(2026-07-15)**: 環境変数`FINAL_ENGINE`(既定`irodori`)で最終音声の生成方式を切替
+  - `irodori`(既定): Step2「この声で仕上げる」が**本文テキスト+声紋から直接生成**(`run_irodori_tts()`、uv経由でinfer.pyをサブプロセス実行)。**下書き不要**(UIもStep1が「任意」表示になり、テキストだけでStep2に進める)。ただし**本人録音の下書きがある章は従来どおりKokoClone声質変換**(経路Aは不変)
+  - `kokoclone`: 従来動作(下書き必須→声質変換)
+  - 長文はOOM対策で**2文ずつ分割生成して結合**(実測に基づく)。重い生成は`_heavy_job_lock`で直列化(TTS/変換/Irodori共通)
+  - E2E確認済み(2026-07-15): 下書きなしで2文の章+声紋A→14.4秒/48kHzの最終音声が生成された(CPU約4分)
+  - フロントはサーバーの`GET /`の`final_engine`を見て挙動を切替(エンジン設定はサーバー側だけで完結)
 
 ## 未着手・保留
 
-- [ ] **AivisSpeech Engine本体のセットアップ** — 外部アプリのため要手動対応。https://aivis-project.com/ からダウンロード・起動し(既定で`localhost:10101`)、**CC0またはACML(商用可)の音声モデル**を選ぶこと(ACML-NCは不可)。ユーザー側の対応待ち。
+- [x] **AivisSpeechモデルのライセンス確認** — 確認済み(2026-07-15)。使用中の話者「まお」を含むモデル(`a59cb814-*.aivmx`、オズチャット/Trippy制作)は**ACML 1.0(無印)=営利利用可**(モデル内蔵のライセンス全文で確認。クレジット表記任意、アプリ組み込みも開発元がライセンス遵守すれば可)。懸念していたACML-NC(非商用)ではなかった。もう1つの導入済みモデル「コハク」(`22e8ed77-*`)もACML 1.0
 - [ ] **実GPU環境での検証** — CPUでの疎通は確認済み(上記)。長い章や大量生成でCPUが遅すぎる場合のみ、クラウドGPU(RunPod、Lambda Labs等)を検討すればよい(必須ではなくなった)。
 - [x] **Kanade Tokenizerのライセンス個別確認** — 確認済み(2026-07-06)。コード: MIT(パッケージMETADATAで確認)、モデル重みkanade-12.5hz: MIT(HFモデルカードで確認)、推論時に自動DLされるVocosボコーダー: MIT(HFで確認)。学習データはLibriTTS(パブリックドメインのLibriVox由来)。「商用利用可能なライセンスのみ」の方針を満たすことを裏付け済み
 

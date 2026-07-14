@@ -462,13 +462,16 @@ function VoiceProfileCard({ profile, colorKey, onDelete, playingId, onTogglePlay
 }
 
 // ----- 章カード(2段階: 読み上げ生成 → 声で仕上げる) -----
-function ChapterCard({ chapter, voiceProfiles, onUpdate, onDelete, onGenerateDraft, onOpenDraftUpload, onApplyVoice, playingChapterId, onTogglePlay }) {
+function ChapterCard({ chapter, voiceProfiles, finalEngine, onUpdate, onDelete, onGenerateDraft, onOpenDraftUpload, onApplyVoice, playingChapterId, onTogglePlay }) {
   const profile = voiceProfiles.find((p) => p.id === chapter.voiceProfileId);
   const isPlayingDraft = playingChapterId === `draft-${chapter.id}`;
   const isPlayingFinal = playingChapterId === `final-${chapter.id}`;
   const hasDraft = chapter.draftStatus === 'done';
   const bodyChangedSinceDraft = hasDraft && chapter.draftSourceBody !== chapter.body;
   const isRecordingDraft = chapter.draftSource === 'recording';
+  // Irodori直接生成: 本人録音がない章は、本文テキスト+声紋だけでStep2に進める(下書き不要)
+  const directMode = finalEngine === 'irodori' && !isRecordingDraft;
+  const step2Ready = hasDraft || (directMode && !!chapter.body.trim());
 
   return (
     <div style={styles.chapterCard}>
@@ -496,8 +499,12 @@ function ChapterCard({ chapter, voiceProfiles, onUpdate, onDelete, onGenerateDra
       <div style={styles.stepBlock}>
         <div style={styles.stepHeader}>
           <span style={styles.stepNumber}>1</span>
-          <span style={styles.stepLabel}>下書き音声を用意する</span>
-          <span style={styles.stepHint}>本人の実録音、またはTTS合成(声質はまだ年代の声ではありません)</span>
+          <span style={styles.stepLabel}>下書き音声を用意する{directMode ? '(任意)' : ''}</span>
+          <span style={styles.stepHint}>
+            {directMode
+              ? '本人の実録音を使いたい場合のみ。テキストからの生成は下書きなしでStep2に進めます'
+              : '本人の実録音、またはTTS合成(声質はまだ年代の声ではありません)'}
+          </span>
         </div>
 
         {chapter.draftStatus === 'idle' && (
@@ -548,17 +555,21 @@ function ChapterCard({ chapter, voiceProfiles, onUpdate, onDelete, onGenerateDra
         )}
       </div>
 
-      {/* Step 2: 声紋で肉付け(声質変換) */}
-      <div style={{ ...styles.stepBlock, opacity: hasDraft ? 1 : 0.45 }}>
+      {/* Step 2: 声紋で肉付け(Irodori直接生成 または 声質変換) */}
+      <div style={{ ...styles.stepBlock, opacity: step2Ready ? 1 : 0.45 }}>
         <div style={styles.stepHeader}>
           <span style={styles.stepNumber}>2</span>
           <span style={styles.stepLabel}>この声で仕上げる</span>
-          <span style={styles.stepHint}>声紋ベクトルを下書きに反映し、本人の声質に変換</span>
+          <span style={styles.stepHint}>
+            {directMode
+              ? '本文テキスト+声紋から直接生成します(Irodoriワンショット)'
+              : '声紋ベクトルを下書きに反映し、本人の声質に変換'}
+          </span>
         </div>
 
         <div style={styles.chapterFooter}>
           <select
-            disabled={!hasDraft}
+            disabled={!step2Ready}
             style={styles.voiceSelect}
             value={chapter.voiceProfileId || ''}
             onChange={(e) => onUpdate(chapter.id, { voiceProfileId: e.target.value || null })}
@@ -571,12 +582,12 @@ function ChapterCard({ chapter, voiceProfiles, onUpdate, onDelete, onGenerateDra
 
           {chapter.finalStatus !== 'generating' && (
             <button
-              disabled={!hasDraft || !chapter.voiceProfileId}
+              disabled={!step2Ready || !chapter.voiceProfileId}
               onClick={() => onApplyVoice(chapter.id)}
               style={{
                 ...styles.generateBtn,
-                opacity: (!hasDraft || !chapter.voiceProfileId) ? 0.4 : 1,
-                cursor: (!hasDraft || !chapter.voiceProfileId) ? 'not-allowed' : 'pointer',
+                opacity: (!step2Ready || !chapter.voiceProfileId) ? 0.4 : 1,
+                cursor: (!step2Ready || !chapter.voiceProfileId) ? 'not-allowed' : 'pointer',
               }}
             >
               この声で仕上げる
@@ -585,7 +596,7 @@ function ChapterCard({ chapter, voiceProfiles, onUpdate, onDelete, onGenerateDra
           {chapter.finalStatus === 'generating' && (
             <div style={styles.generatingChip}>
               <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} />
-              声質変換中...
+              {directMode ? '音声を生成中...(数分かかります)' : '声質変換中...'}
             </div>
           )}
         </div>
@@ -621,19 +632,23 @@ export default function VoiceNarrationApp() {
   const [playingChapterId, setPlayingChapterId] = useState(null);
   const [loadError, setLoadError] = useState(null);
   const [loading, setLoading] = useState(true);
+  // 最終音声の生成方式(サーバー設定): 'irodori'=テキストから直接生成(下書き不要) / 'kokoclone'=下書きを声質変換
+  const [finalEngine, setFinalEngine] = useState(null);
 
   // 初期ロード: サーバーから声紋・章の一覧を取得
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const [profilesRes, chaptersRes] = await Promise.all([
+        const [profilesRes, chaptersRes, rootRes] = await Promise.all([
           apiFetch('/api/voice-profiles'),
           apiFetch('/api/chapters'),
+          apiFetch('/'),
         ]);
         if (cancelled) return;
         setVoiceProfiles(profilesRes.map(mapVoiceProfile));
         setChapters(chaptersRes.map(mapChapter));
+        setFinalEngine(rootRes?.final_engine || null);
         setLoadError(null);
       } catch (err) {
         if (!cancelled) setLoadError(err.message);
@@ -908,6 +923,7 @@ export default function VoiceNarrationApp() {
                   <ChapterCard
                     chapter={c}
                     voiceProfiles={voiceProfiles}
+                    finalEngine={finalEngine}
                     onUpdate={persistChapterUpdate}
                     onDelete={deleteChapter}
                     onGenerateDraft={generateDraft}

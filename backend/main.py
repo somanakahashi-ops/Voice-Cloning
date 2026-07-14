@@ -22,6 +22,7 @@ import sys
 import json
 import logging
 import subprocess
+import threading
 import uuid
 import shutil
 from pathlib import Path
@@ -283,13 +284,19 @@ def run_tts(text: str, output_path: Path) -> None:
         raise ValueError(f"未対応のTTS_ENGINEです: {engine}(aivisspeech または kokoro を指定)")
 
 
+# RAM15GBのこのマシンでは重い生成(TTS・声質変換・Irodori)を並行させるとOOMで落ちるため、
+# 常に直列実行する
+_heavy_job_lock = threading.Lock()
+
+
 def process_draft_generation(chapter_id: str):
     chapter = chapters_db.get(chapter_id)
     if not chapter:
         return
     try:
         output_path = DRAFT_AUDIO_DIR / f"{chapter_id}.wav"
-        run_tts(chapter["body"], output_path)
+        with _heavy_job_lock:
+            run_tts(chapter["body"], output_path)
         chapter["draft_status"] = "done"
         chapter["draft_audio_url"] = f"/files/draft_audio/{output_path.name}"
         chapter["draft_audio_path"] = str(output_path)
@@ -345,17 +352,88 @@ def run_voice_conversion(source_audio_path: Path, reference_audio_path: Path, ou
     )
 
 
+# ============================================================
+# Irodori-TTSによるワンショット生成(経路Bの採用方式)
+# テキスト+声紋参照音声から最終音声を直接生成する(下書き・KokoClone変換を経由しない)
+# ============================================================
+
+IRODORI_DIR = Path(os.environ.get("IRODORI_DIR", str(Path.home() / "irodori-tts")))
+IRODORI_CHECKPOINT = os.environ.get("IRODORI_CHECKPOINT", "Aratako/Irodori-TTS-500M-v3")
+
+
+def _final_engine() -> str:
+    """最終音声の生成方式。irodori(既定)=テキストから直接生成 / kokoclone=下書きを声質変換"""
+    return os.environ.get("FINAL_ENGINE", "irodori")
+
+
+def _find_uv() -> str:
+    uv = shutil.which("uv")
+    if uv:
+        return uv
+    fallback = Path.home() / "AppData" / "Roaming" / "Python" / "Python314" / "Scripts" / "uv.exe"
+    if fallback.exists():
+        return str(fallback)
+    raise RuntimeError("uvが見つかりません(Irodori-TTSの実行に必要)")
+
+
+def run_irodori_tts(text: str, reference_audio_path: Path, output_path: Path) -> None:
+    """Irodori-TTSでテキスト+参照音声から直接生成する。
+
+    RAM15GBのこのマシンでは長文の一括生成がOOMで無言クラッシュするため(実測)、
+    2文ずつに分割して生成し、0.3秒の無音を挟んで結合する。
+    """
+    sentences = _split_sentences(text)
+    chunks = ["".join(sentences[i:i + 2]) for i in range(0, len(sentences), 2)] or [text]
+    uv = _find_uv()
+    tmp_dir = FINAL_AUDIO_DIR / f"_irodori_tmp_{uuid.uuid4().hex[:8]}"
+    tmp_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        parts = []
+        sample_rate = None
+        for i, chunk in enumerate(chunks):
+            chunk_path = tmp_dir / f"part{i}.wav"
+            logger.info("Irodori-TTS生成中 (%d/%d)...", i + 1, len(chunks))
+            proc = subprocess.run(
+                [uv, "run", "--no-sync", "python", "infer.py",
+                 "--hf-checkpoint", IRODORI_CHECKPOINT,
+                 "--text", chunk,
+                 "--ref-wav", str(reference_audio_path),
+                 "--output-wav", str(chunk_path)],
+                cwd=str(IRODORI_DIR), capture_output=True, timeout=1800,
+            )
+            if proc.returncode != 0 or not chunk_path.exists():
+                tail = (proc.stderr or b"").decode("utf-8", errors="replace")[-500:]
+                raise RuntimeError(
+                    f"Irodori-TTSの生成に失敗しました({i + 1}/{len(chunks)}件目, exit={proc.returncode}): {tail}"
+                )
+            data, sr = sf.read(str(chunk_path))
+            if data.ndim > 1:
+                data = data.mean(axis=1)
+            parts.append(data.astype(np.float32))
+            parts.append(np.zeros(int(sr * 0.3), dtype=np.float32))
+            sample_rate = sr
+        sf.write(str(output_path), np.concatenate(parts), sample_rate)
+    finally:
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+
+
 def process_voice_application(chapter_id: str, voice_profile_id: str):
     chapter = chapters_db.get(chapter_id)
     profile = voice_profiles_db.get(voice_profile_id)
     if not chapter or not profile:
         return
     try:
-        source_path = Path(chapter["draft_audio_path"])
         reference_path = Path(profile["audio_path"])
         output_path = FINAL_AUDIO_DIR / f"{chapter_id}_{voice_profile_id}.wav"
 
-        run_voice_conversion(source_path, reference_path, output_path)
+        with _heavy_job_lock:
+            # 本人録音の下書きは声質変換(KokoClone)で仕上げる(録音の自然さを活かす経路A)。
+            # それ以外はIrodoriワンショットで本文テキストから直接生成(採用済みの経路B)
+            if _final_engine() == "irodori" and chapter.get("draft_source") != "recording":
+                run_irodori_tts(chapter["body"], reference_path, output_path)
+            else:
+                source_path = Path(chapter["draft_audio_path"])
+                run_voice_conversion(source_path, reference_path, output_path)
 
         chapter["final_status"] = "done"
         chapter["final_audio_url"] = f"/files/final_audio/{output_path.name}"
@@ -581,7 +659,13 @@ async def apply_voice(chapter_id: str, payload: ApplyVoiceRequest, background_ta
     chapter = chapters_db.get(chapter_id)
     if not chapter:
         raise HTTPException(status_code=404, detail="章が見つかりません")
-    if chapter["draft_status"] != "done":
+    # Irodori直接生成モードでは下書き不要(本文テキストから直接生成する)。
+    # 本人録音がある場合は従来どおり声質変換なので下書き必須
+    irodori_direct = _final_engine() == "irodori" and chapter.get("draft_source") != "recording"
+    if irodori_direct:
+        if not chapter["body"].strip():
+            raise HTTPException(status_code=400, detail="本文が空です")
+    elif chapter["draft_status"] != "done":
         raise HTTPException(status_code=400, detail="先に読み上げ生成(Step1)を完了してください")
     if payload.voice_profile_id not in voice_profiles_db:
         raise HTTPException(status_code=404, detail="指定された声紋が見つかりません")
@@ -639,7 +723,7 @@ async def list_listening_audio():
 
 @app.get("/")
 async def root():
-    return {"status": "ok", "service": "voice-narration-backend"}
+    return {"status": "ok", "service": "voice-narration-backend", "final_engine": _final_engine()}
 
 
 # ビルド済みフロントエンド(frontend/dist)があれば http://localhost:8000/app/ で配信する。
