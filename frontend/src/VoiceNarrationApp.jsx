@@ -472,6 +472,8 @@ function ChapterCard({ chapter, voiceProfiles, finalEngine, onUpdate, onDelete, 
   // Irodori直接生成: 本人録音がない章は、本文テキスト+声紋だけでStep2に進める(下書き不要)
   const directMode = finalEngine === 'irodori' && !isRecordingDraft;
   const step2Ready = hasDraft || (directMode && !!chapter.body.trim());
+  // スリム化: 直接生成モードで下書きが何もない章はStep1自体を出さない(テキスト→生成の一本道)
+  const step1Hidden = directMode && !hasDraft && chapter.draftStatus === 'idle';
 
   return (
     <div style={styles.chapterCard}>
@@ -495,7 +497,15 @@ function ChapterCard({ chapter, voiceProfiles, finalEngine, onUpdate, onDelete, 
         rows={4}
       />
 
-      {/* Step 1: 下書き音声を用意する(声紋非依存) */}
+      {/* 直接生成モードのデフォルト経路ではStep1を畳み、必要な人だけ本人録音に切り替えられるようにする */}
+      {step1Hidden && (
+        <button onClick={() => onOpenDraftUpload(chapter.id)} style={styles.regenLink}>
+          本人の声で録音したい場合はこちら(任意)
+        </button>
+      )}
+
+      {/* Step 1: 下書き音声を用意する(声紋非依存)。直接生成モードでは非表示 */}
+      {!step1Hidden && (
       <div style={styles.stepBlock}>
         <div style={styles.stepHeader}>
           <span style={styles.stepNumber}>1</span>
@@ -554,11 +564,12 @@ function ChapterCard({ chapter, voiceProfiles, finalEngine, onUpdate, onDelete, 
           </div>
         )}
       </div>
+      )}
 
       {/* Step 2: 声紋で肉付け(Irodori直接生成 または 声質変換) */}
       <div style={{ ...styles.stepBlock, opacity: step2Ready ? 1 : 0.45 }}>
         <div style={styles.stepHeader}>
-          <span style={styles.stepNumber}>2</span>
+          <span style={styles.stepNumber}>{step1Hidden ? '1' : '2'}</span>
           <span style={styles.stepLabel}>この声で仕上げる</span>
           <span style={styles.stepHint}>
             {directMode
