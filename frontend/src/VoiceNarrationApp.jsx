@@ -14,6 +14,23 @@ const ERA_COLORS = {
 };
 const ERA_PALETTE = ['amber', 'pine', 'ink'];
 
+// 声紋の新規録音時に読んでもらう台本の候補。
+// 「ランダムに何か話してください」だと本人も困るうえ、声質の再現度にも影響するため、
+// 日本語の音素バランスを考慮した台本例を提示する。
+// 出典: ITAコーパス(パブリックドメイン。SSS合同会社・明治大学・九州工業大学が共同開発)
+//       https://github.com/mmorise/ita-corpus
+// 424文の中から、読みやすく短いものを8文抜粋している。
+const SUGGESTED_SCRIPT = [
+  '社長からの指示です。',
+  '猫はにゃーにゃーと鳴く。',
+  '私はこの本に八百円を払った。',
+  'チョコの在庫あったかな？',
+  '時間はあるんだから、安全運転してくれよ。',
+  '結局のところお互い五十歩百歩だ。',
+  '客人をもてなすのは当然です。',
+  'この丘からは何百万という星が見える。',
+];
+
 // バックエンドAPIのベースURL。環境変数等で差し替え可能にしておく。
 // 接続先が起動していない場合、各API呼び出しはエラーをスローし、
 // 呼び出し元でユーザーに分かる形のエラーメッセージとして表示する。
@@ -96,6 +113,7 @@ function RecordModal({ onClose, onSave }) {
   const [duration, setDuration] = useState(0);
   const [error, setError] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [showScript, setShowScript] = useState(true);
   const mediaRecorderRef = useRef(null);
   const chunksRef = useRef([]);
   const timerRef = useRef(null);
@@ -172,6 +190,27 @@ function RecordModal({ onClose, onSave }) {
             placeholder="例: 1985年頃"
           />
         </div>
+
+        {showScript && (
+          <div style={styles.scriptBox}>
+            <div style={styles.scriptBoxHeader}>
+              <span>読む内容に迷ったら、この台本をどうぞ</span>
+              <button onClick={() => setShowScript(false)} style={styles.linkBtn}>隠す</button>
+            </div>
+            <ol style={styles.scriptList}>
+              {SUGGESTED_SCRIPT.map((line, i) => (
+                <li key={i}>{line}</li>
+              ))}
+            </ol>
+            <div style={styles.scriptNote}>
+              日本語の音素バランスを考慮した文例(ITAコーパスより抜粋・パブリックドメイン)。
+              自然に話せる内容があれば、それを話していただいても構いません。
+            </div>
+          </div>
+        )}
+        {!showScript && !audioUrl && (
+          <button onClick={() => setShowScript(true)} style={styles.linkBtn}>台本を表示する</button>
+        )}
 
         <div style={styles.recordArea}>
           {!audioUrl ? (
@@ -1219,6 +1258,22 @@ const styles = {
   input: {
     width: '100%', padding: '10px 12px', borderRadius: 8,
     border: '1px solid #E2DBCB', fontSize: 13.5, outline: 'none', background: 'white',
+  },
+
+  scriptBox: {
+    border: '1px solid #E2DBCB', borderRadius: 10, padding: '12px 14px',
+    background: '#FBFAF6', marginTop: 4,
+  },
+  scriptBoxHeader: {
+    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+    fontSize: 12, color: '#6B6356', fontWeight: 600, marginBottom: 8,
+  },
+  scriptList: {
+    margin: 0, paddingLeft: 18, display: 'flex', flexDirection: 'column', gap: 5,
+    fontSize: 13.5, lineHeight: 1.6, color: '#2B2724',
+  },
+  scriptNote: {
+    fontSize: 10.5, color: '#8A8273', marginTop: 10, lineHeight: 1.5,
   },
 
   recordArea: {
