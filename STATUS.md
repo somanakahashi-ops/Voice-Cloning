@@ -1,6 +1,15 @@
 # 現在の作業状況
 
-最終更新: 2026-07-06(このセッションでの作業内容)
+最終更新: 2026-08(リファクタリング)
+
+## リファクタリング(2026-08)
+
+- **backend/main.pyをモジュール分割**(734行→ルート定義のみに縮小)。`config.py`(パス・env設定)/`state.py`(インメモリDB+state.json永続化)/`models.py`(Pydanticスキーマ)/`audio_utils.py`(音声変換・前処理・文分割)/`tts_engines.py`(Step1: AivisSpeech/Kokoro)/`voice_conversion.py`(Step2: KokoClone/Irodori)/`jobs.py`(バックグラウンドジョブ)に分離。
+  **エンドポイント・env変数・state.jsonのフォーマットは一切変更なし**。起動コマンド(`uvicorn main:app`)も同じなので、`VoiceCloningBackend`タスクは`git pull`後そのまま再起動すれば動く(依存パッケージの追加インストールも不要)。
+  このクラウド環境でCRUD一式・再起動後のstate.json復元をE2E確認済み(kokoclone/Irodoriの重い生成部分は構造変更なしのためコード確認のみ、以前このセッションで実データ変換済み)。
+- **voice-narration-prototype.tsx(単一ファイル版の旧プロトタイプ)を削除**。`frontend/src/VoiceNarrationApp.jsx`が唯一のフロントエンドソースになった(内容は既にVite側へ移行済みで、旧ファイルは死んだ重複コードだった)。
+
+以下は2026-07-06時点の記録(このリファクタリング以前の作業内容)。
 
 このファイルは「今どこまで進んでいて、次に何をすればいいか」を後継セッション(別のClaude Codeセッション、claude.ai/codeセッション等)が把握するためのものです。設計の背景や方針は `handoff-instructions.txt` を参照してください。こちらは常に最新の実装状況・環境状況を反映するように更新してください。
 

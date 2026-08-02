@@ -75,7 +75,8 @@
 ------------------------------------
 
 1. フロントエンド
-   ファイル: voice-narration-prototype.tsx (React, 単一ファイル)
+   ファイル: frontend/src/VoiceNarrationApp.jsx (React, Vite構成)
+   ※ 旧voice-narration-prototype.tsx(単一ファイル版)は2026-08にfrontend/へ統合済みのため削除
    - 声紋ライブラリ(録音 / アップロード、カセットテープ風UI、年代タグで色分け)
    - 章エディタ(タイムライン形式、章ごとに本文編集)
    - Step1: 「本人の声で録音/アップロード」ボタン と 「TTSで読み上げを生成」
@@ -229,12 +230,21 @@
   Kokoro/Irodori-TTS等が担当領域
 
 
-■ ファイル一覧
-------------------
-- voice-narration-prototype.tsx     フロントエンド本体
-- backend/main.py                    バックエンドAPI(TTS/声質変換 実装済み)
-- backend/setup_models.py            Kokoroモデルダウンロードスクリプト
-- backend/requirements.txt           Python依存パッケージ
-- backend/README.md                  セットアップ・接続手順
-- handoff-instructions.txt           この引き継ぎ指示書
-- .gitignore                         モデルファイル・生成物を除外
+■ ファイル一覧(2026-08時点、backendはモジュール分割済み)
+------------------------------------------------------------
+- frontend/src/VoiceNarrationApp.jsx  フロントエンド本体(Vite構成、GitHub Pagesにデプロイ)
+- backend/main.py                     FastAPIアプリ本体・ルート定義
+- backend/config.py                    パス・環境変数などの設定値
+- backend/state.py                      インメモリDB + state.jsonへの永続化
+- backend/models.py                      Pydanticスキーマ
+- backend/audio_utils.py                  音声形式変換・前処理・文分割
+- backend/tts_engines.py                   Step1: TTS合成(AivisSpeech/Kokoro)
+- backend/voice_conversion.py               Step2: 声質変換(KokoClone)/Irodoriワンショット生成
+- backend/jobs.py                            バックグラウンドジョブ実行
+- backend/setup_models.py             Kokoroモデルダウンロードスクリプト
+- backend/requirements.txt            Python依存パッケージ
+- backend/README.md                   セットアップ・接続手順
+- handoff-instructions.txt            この引き継ぎ指示書
+- STATUS.md                           作業状況(常に最新化すること)
+- DEMO.md                             デモ手順書
+- .gitignore                          モデルファイル・生成物を除外
