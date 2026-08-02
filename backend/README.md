@@ -82,7 +82,14 @@ uvicorn main:app --reload --port 8000
 
 ```
 backend/
-├── main.py              APIサーバー本体
+├── main.py              FastAPIアプリ本体・ルート定義
+├── config.py            パス・環境変数などの設定値
+├── state.py             インメモリDB + state.jsonへの永続化
+├── models.py            Pydanticスキーマ
+├── audio_utils.py       音声形式変換・前処理・文分割
+├── tts_engines.py       Step1: TTS合成(AivisSpeech / Kokoro)
+├── voice_conversion.py  Step2: 声質変換(KokoClone) / Irodoriワンショット生成
+├── jobs.py              バックグラウンドジョブの実行と状態反映
 ├── setup_models.py      Kokoroモデルダウンロードスクリプト(kokoro使用時のみ)
 ├── requirements.txt     Python依存パッケージ
 ├── README.md            このファイル
@@ -91,7 +98,8 @@ backend/
 └── storage/             生成ファイル保存先（gitignore対象）
     ├── voice_profiles/  アップロードされた声紋音声
     ├── draft_audio/     Step1で用意した下書き音声(本人録音 or TTS生成)
-    └── final_audio/     Step2で生成した最終音声
+    ├── final_audio/     Step2で生成した最終音声
+    └── state.json        登録内容の永続化(サーバー再起動で消えないように保存)
 ```
 
 ## 動作確認の流れ
