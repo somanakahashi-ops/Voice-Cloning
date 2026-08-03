@@ -466,9 +466,9 @@ function VoiceProfileCard({ profile, colorKey, index, onDelete, playingId, onTog
   const c = ERA_COLORS[colorKey];
   const isPlaying = playingId === profile.id;
   // 机の上に散らばったテープのように、カードごとに傾き・高さ・影の向きをずらす
-  const tilt = [-3.2, 2.4, -1.6, 3.6, -4, 1.8, -2.6, 3][index % 8];
-  const lift = [0, 7, -4, 5, -6, 3, -3, 6][index % 8];
-  const shadowX = tilt >= 0 ? 5 : -5;
+  const tilt = [-2.2, 1.8, -1.2, 2.6, -2.8, 1.4, -1.8, 2.2][index % 8];
+  const lift = [0, 4, -3, 3, -4, 2, -2, 4][index % 8];
+  const shadowX = tilt >= 0 ? 4 : -4;
   return (
     <div
       className="vm-cassette"
@@ -912,7 +912,7 @@ export default function VoiceNarrationApp() {
     <div style={styles.app}>
       <style>{`
         .vm-cassette { transition: transform 0.25s cubic-bezier(0.34, 1.4, 0.64, 1), box-shadow 0.25s ease; }
-        .vm-cassette:hover { transform: translateY(-6px) rotate(0deg) scale(1.035) !important; box-shadow: 0 14px 26px rgba(42,36,30,0.22) !important; }
+        .vm-cassette:hover { transform: translateY(-4px) rotate(0deg) scale(1.025) !important; box-shadow: 0 10px 18px rgba(42,36,30,0.2) !important; }
         .vm-chapter-card { transition: box-shadow 0.22s ease, border-color 0.22s ease; animation: riseIn 0.4s ease both; }
         .vm-chapter-card:hover { box-shadow: 0 6px 18px rgba(42,36,30,0.09); border-color: ${COLORS.amber}; }
         .vm-btn-primary, .vm-btn-generate, .vm-btn-step { transition: transform 0.15s ease, box-shadow 0.15s ease; }
@@ -1140,11 +1140,18 @@ const styles = {
   },
   emptyText: { fontSize: 13, margin: 0, maxWidth: 320 },
 
+  // overflow-x:auto は仕様上、縦方向も自動クリップの対象になる。
+  // 傾き・持ち上げ・影のはみ出し分を吸収する余白を確保しないと、
+  // 影が途中で切れたり意図しない縦スクロールバーが出たりする。
   cassetteRow: {
     display: 'flex',
-    gap: 14,
+    gap: 18,
     overflowX: 'auto',
-    paddingBottom: 8,
+    overflowY: 'hidden',
+    paddingTop: 18,
+    paddingBottom: 40,
+    paddingLeft: 4,
+    paddingRight: 4,
   },
   cassette: {
     minWidth: 172,
