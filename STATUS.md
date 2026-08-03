@@ -86,14 +86,19 @@
 - Kokoroモデルファイル: `backend\models\` にダウンロード済み(kokoro使用時の代替エンジン用)
 - KokoClone: `backend\kokoclone\` にclone済み
 
-## バックエンドの常駐化(2026-07-14)
+## バックエンドの常駐化・起動バッチ(2026-07-14、2026-08に更新)
 
-- **ログオン時にAPIサーバーが自動起動**する(Windowsタスクスケジューラ: `VoiceCloningBackend`)
-  - スクリプト: `C:\Users\porup\scripts\voice-cloning-backend.ps1`(監視ループ。uvicornが落ちたら15秒後に自動再起動、二重起動はポート8000チェックで防止)— 動作検証済み(kill→自動復活を確認)
-  - ログ: `C:\Users\porup\scripts\voice-cloning-backend-log.txt`(イベント)、`-out.log`/`-err.log`(uvicorn出力、5MB超で自動クリア)
-  - 停止したいとき: `schtasks /End /TN VoiceCloningBackend` の後、残ったpython.exeをタスクマネージャ等で終了
+- `scripts/voice-cloning-backend.ps1`(リポジトリ内。旧`C:\Users\porup\scripts\`から移動)が監視ループ本体。
+  uvicornが落ちたら15秒後に自動再起動、二重起動はポート8000チェックで防止。
+  - ログ: `scripts/voice-cloning-backend-log.txt`(イベント)、`-out.log`/`-err.log`(uvicorn出力、5MB超で自動クリア)
+  - **`scripts/start-app.bat`を実行するとこのps1が起動する**(直接`powershell.exe -File`で呼ぶ形。`schtasks`経由ではなくなった)
+  - **停止したいとき**: `schtasks /End /TN VoiceCloningBackend` を試したあと、`tasklist | findstr python`でプロセスが残っていないか確認し、残っていれば`taskkill /F /IM python.exe`(他のPythonプロセスも道連れになる点に注意)
+- **`start-app.bat`は毎回フロントエンドを自動ビルドしてから起動する**(2026-08〜)。
+  以前は`cd frontend && npm run build`を手動で実行し忘れると古い画面のままになる問題があったため、
+  bat内で`npm run build`してからバックエンドを起動するように変更した(ビルドは1〜2秒で終わる)。
+  手動でビルドしたい場合は引き続き`cd frontend && npm run build`でも可。
 - **ビルド済みフロントを `/app` で配信**: バックエンドさえ動いていれば **http://localhost:8000/app/** でUI(記憶帳+試聴室)にアクセスできる(`npm run dev`不要)
-  - `frontend/dist`があるときだけマウントされる。**UIを変更したら `cd frontend && npm run build` で反映**
+  - `frontend/dist`があるときだけマウントされる
   - `vite.config.js`のbaseを相対パス(`./`)に変更済み — GitHub Pagesと`/app`配信で同じビルドが動く
 
 ## Git自動化
