@@ -2,6 +2,7 @@ import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { Mic, Square, Upload, Play, Pause, Plus, X, Check, Loader2, FileAudio, Clock, BookOpen, Trash2 } from 'lucide-react';
 import { COLORS, ERA_COLORS, ERA_PALETTE, FONT_DISPLAY, FONT_BODY, FONT_MONO } from './theme';
 import { Waveform, SignalDot } from './Waveform';
+import { Reel } from './Reel';
 
 // ============================================================
 // データモデル(設計通りの構造をフロントの状態として再現)
@@ -464,24 +465,28 @@ function ChapterDraftModal({ onClose, onSave }) {
 function VoiceProfileCard({ profile, colorKey, index, onDelete, playingId, onTogglePlay }) {
   const c = ERA_COLORS[colorKey];
   const isPlaying = playingId === profile.id;
-  // 机の上に置かれたテープのように、カードごとにわずかに傾ける(-2/0/2度を巡回)
-  const tilt = [-1.4, 1.2, -0.8, 1.6, -1.8][index % 5];
+  // 机の上に散らばったテープのように、カードごとに傾き・高さ・影の向きをずらす
+  const tilt = [-3.2, 2.4, -1.6, 3.6, -4, 1.8, -2.6, 3][index % 8];
+  const lift = [0, 7, -4, 5, -6, 3, -3, 6][index % 8];
+  const shadowX = tilt >= 0 ? 5 : -5;
   return (
     <div
       className="vm-cassette"
-      style={{ ...styles.cassette, background: c.bgSoft, borderColor: c.bg, transform: `rotate(${tilt}deg)` }}
+      style={{
+        ...styles.cassette,
+        background: c.bgSoft,
+        borderColor: c.bg,
+        transform: `rotate(${tilt}deg) translateY(${lift}px)`,
+        boxShadow: `${shadowX}px 8px 14px rgba(42,36,30,0.16)`,
+      }}
     >
       <div style={{ ...styles.cassetteLabel, background: c.bg }}>
         <span style={styles.cassetteEra}>{profile.eraTag || '年代未設定'}</span>
       </div>
       <div style={styles.cassetteBody}>
         <div style={styles.cassetteReels}>
-          <div style={{ ...styles.reel, borderColor: c.bg, animation: isPlaying ? 'reelSpin 2.6s linear infinite' : 'none' }}>
-            <div style={{ ...styles.reelHub, background: c.bg }} />
-          </div>
-          <div style={{ ...styles.reel, borderColor: c.bg, animation: isPlaying ? 'reelSpin 2.6s linear infinite' : 'none' }}>
-            <div style={{ ...styles.reelHub, background: c.bg }} />
-          </div>
+          <Reel spinning={isPlaying} color={c.bg} />
+          <Reel spinning={isPlaying} color={c.bg} />
         </div>
         <div style={styles.cassetteTitle}>{profile.label}</div>
         <div style={styles.cassetteMeta}>
@@ -906,8 +911,8 @@ export default function VoiceNarrationApp() {
   return (
     <div style={styles.app}>
       <style>{`
-        .vm-cassette { transition: transform 0.22s ease, box-shadow 0.22s ease; }
-        .vm-cassette:hover { transform: translateY(-3px) rotate(0deg) !important; box-shadow: 0 10px 20px rgba(42,36,30,0.18); }
+        .vm-cassette { transition: transform 0.25s cubic-bezier(0.34, 1.4, 0.64, 1), box-shadow 0.25s ease; }
+        .vm-cassette:hover { transform: translateY(-6px) rotate(0deg) scale(1.035) !important; box-shadow: 0 14px 26px rgba(42,36,30,0.22) !important; }
         .vm-chapter-card { transition: box-shadow 0.22s ease, border-color 0.22s ease; animation: riseIn 0.4s ease both; }
         .vm-chapter-card:hover { box-shadow: 0 6px 18px rgba(42,36,30,0.09); border-color: ${COLORS.amber}; }
         .vm-btn-primary, .vm-btn-generate, .vm-btn-step { transition: transform 0.15s ease, box-shadow 0.15s ease; }
@@ -1161,11 +1166,6 @@ const styles = {
   },
   cassetteBody: { padding: '12px 12px 10px', background: 'rgba(255,255,255,0.5)' },
   cassetteReels: { display: 'flex', justifyContent: 'space-between', padding: '0 10px', marginBottom: 8 },
-  reel: {
-    width: 22, height: 22, borderRadius: '50%', border: '3px solid',
-    display: 'flex', alignItems: 'center', justifyContent: 'center',
-  },
-  reelHub: { width: 6, height: 6, borderRadius: '50%' },
   cassetteTitle: { fontSize: 13.5, fontWeight: 700, marginBottom: 4 },
   cassetteMeta: { fontFamily: FONT_MONO, fontSize: 10, color: COLORS.inkSoft, display: 'flex', alignItems: 'center', gap: 4, marginBottom: 8 },
   cassetteWave: { padding: '2px 0 10px' },

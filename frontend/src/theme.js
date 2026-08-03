@@ -62,7 +62,23 @@ export const GLOBAL_KEYFRAMES = `
   }
   @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
   @keyframes reelSpin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-  @keyframes waveBar { 0%, 100% { transform: scaleY(0.32); } 50% { transform: scaleY(1); } }
+  @keyframes waveBarA {
+    0%, 100% { transform: scaleY(var(--wf-min, 0.3)); }
+    50% { transform: scaleY(var(--wf-max, 1)); }
+  }
+  @keyframes waveBarB {
+    0%, 100% { transform: scaleY(var(--wf-min, 0.3)); }
+    30% { transform: scaleY(var(--wf-max, 1)); }
+    55% { transform: scaleY(calc(var(--wf-min, 0.3) + 0.15)); }
+    80% { transform: scaleY(var(--wf-max, 1)); }
+  }
+  @keyframes waveBarC {
+    0%, 100% { transform: scaleY(var(--wf-min, 0.3)); }
+    20% { transform: scaleY(var(--wf-max, 1)); }
+    40% { transform: scaleY(calc(var(--wf-min, 0.3) + 0.12)); }
+    62% { transform: scaleY(var(--wf-max, 1)); }
+    83% { transform: scaleY(calc(var(--wf-min, 0.3) + 0.22)); }
+  }
   @keyframes signalPulse {
     0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(46,158,134,0.4); }
     50% { opacity: 0.5; box-shadow: 0 0 0 5px rgba(46,158,134,0); }
