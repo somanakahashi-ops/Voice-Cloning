@@ -1,11 +1,11 @@
-# 声の記憶帳バックエンド常駐スクリプト(タスクスケジューラ VoiceCloningBackend から起動)
+﻿# 声の記憶帳バックエンド常駐スクリプト(タスクスケジューラ VoiceCloningBackend から起動)
 # uvicornを起動し、落ちたら15秒後に自動再起動する。二重起動はポート8000の確認で防ぐ。
-$dir = "D:\SPELLERS\01_開発\Voice-Cloning\scripts"
+$dir = $PSScriptRoot
 $log = "$dir\voice-cloning-backend-log.txt"
 $outLog = "$dir\voice-cloning-backend-out.log"
 $errLog = "$dir\voice-cloning-backend-err.log"
-$py = "D:\SPELLERS\01_開発\Voice-Cloning\backend\.venv\Scripts\python.exe"
-$workdir = "D:\SPELLERS\01_開発\Voice-Cloning\backend"
+$py = Join-Path $dir "..\backend\.venv\Scripts\python.exe"
+$workdir = Join-Path $dir "..\backend"
 
 function Write-Log($msg) {
     Add-Content -Path $log -Value "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') $msg"
