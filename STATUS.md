@@ -91,8 +91,9 @@
 - `scripts/voice-cloning-backend.ps1`(リポジトリ内。旧`C:\Users\porup\scripts\`から移動)が監視ループ本体。
   uvicornが落ちたら15秒後に自動再起動、二重起動はポート8000チェックで防止。
   - ログ: `scripts/voice-cloning-backend-log.txt`(イベント)、`-out.log`/`-err.log`(uvicorn出力、5MB超で自動クリア)
-  - **`scripts/start-app.bat`を実行するとこのps1が起動する**(直接`powershell.exe -File`で呼ぶ形。`schtasks`経由ではなくなった)
-  - **停止したいとき**: `schtasks /End /TN VoiceCloningBackend` を試したあと、`tasklist | findstr python`でプロセスが残っていないか確認し、残っていれば`taskkill /F /IM python.exe`(他のPythonプロセスも道連れになる点に注意)
+  - **`scripts/start-app.bat`を実行するとこのps1が起動する**(直接`powershell.exe -File`で呼ぶ形)
+  - **`VoiceCloningBackend`という名前のWindowsタスクスケジューラのタスクは実在しない**(2026-08にD:ドライブへ引っ越した際に確認。`schtasks /End`/`schtasks /Change`はどちらも「タスクが存在しない」エラーになる。ログオン時の自動起動もされない)
+  - **停止したいとき**: `tasklist | findstr python` でプロセスを確認し、`taskkill /F /IM python.exe`で終了する(他のPythonプロセスも道連れになる点に注意)。schtasksコマンドは不要
 - **`start-app.bat`は毎回フロントエンドを自動ビルドしてから起動する**(2026-08〜)。
   以前は`cd frontend && npm run build`を手動で実行し忘れると古い画面のままになる問題があったため、
   bat内で`npm run build`してからバックエンドを起動するように変更した(ビルドは1〜2秒で終わる)。
