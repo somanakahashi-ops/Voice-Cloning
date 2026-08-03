@@ -1,2 +1,10 @@
 2026-08-03 20:08:53 supervisor start
 2026-08-03 20:08:53 uvicorn started pid=33876
+2026-08-03 21:11:23 uvicorn exited code=; restarting in 15s
+2026-08-03 21:11:38 uvicorn started pid=28424
+2026-08-03 22:20:32 already running on port 8000; exit
+2026-08-03 22:25:36 uvicorn exited code=; restarting in 15s
+2026-08-03 22:25:40 supervisor start
+2026-08-03 22:25:40 uvicorn started pid=26588
+2026-08-03 22:27:01 uvicorn exited code=; restarting in 15s
+2026-08-03 22:27:16 uvicorn started pid=23140

@@ -69,7 +69,7 @@ function AudioCard({ title, note, seconds, url, adopted }) {
   };
 
   return (
-    <div style={styles.card}>
+    <div className="vm-listen-card" style={styles.card}>
       <div style={styles.cardHead}>
         <button onClick={toggle} style={{ ...styles.playBtn, background: adopted ? COLORS.signal : COLORS.ink }}>
           {playing ? <Pause size={13} /> : <Play size={13} />}
@@ -125,13 +125,21 @@ export default function ListeningRoom() {
 
   return (
     <div style={styles.app}>
+      <style>{`
+        .vm-listen-card { transition: box-shadow 0.22s ease, border-color 0.22s ease, transform 0.22s ease; }
+        .vm-listen-card:hover { box-shadow: 0 6px 18px rgba(42,36,30,0.1); border-color: ${COLORS.amber}; transform: translateY(-2px); }
+      `}</style>
       <header style={styles.header}>
+        <div style={styles.headerGrain} />
         <div style={styles.inner}>
-          <div style={styles.eyebrow}>LISTENING ROOM</div>
+          <div style={styles.eyebrow}>LISTENING ROOM — SIGNAL FROM THE PAST</div>
           <h1 style={styles.title}>試聴室</h1>
           <p style={styles.lead}>
             生成・変換した音声をブラウザで聴けます。本人録音の下書きは非公開領域にあり、ここには含まれません。
           </p>
+          <div style={styles.heroWaveRow}>
+            <Waveform active bars={40} size="lg" color={COLORS.signal} />
+          </div>
         </div>
       </header>
 
@@ -190,27 +198,44 @@ const styles = {
     paddingBottom: 80,
   },
   header: {
-    borderBottom: `1px solid ${COLORS.hairline}`,
-    padding: '40px 20px 32px',
-    background: `linear-gradient(180deg, ${COLORS.paperDeep} 0%, ${COLORS.paper} 100%)`,
+    position: 'relative',
+    overflow: 'hidden',
+    padding: '56px 20px 40px',
+    background: `radial-gradient(ellipse 900px 500px at 15% -10%, #34291d 0%, ${COLORS.ink} 55%)`,
   },
-  inner: { maxWidth: 720, margin: '0 auto' },
+  headerGrain: {
+    position: 'absolute',
+    inset: 0,
+    opacity: 0.5,
+    pointerEvents: 'none',
+    backgroundImage:
+      'repeating-linear-gradient(115deg, rgba(255,255,255,0.025) 0px, rgba(255,255,255,0.025) 1px, transparent 1px, transparent 3px)',
+  },
+  inner: { maxWidth: 720, margin: '0 auto', position: 'relative' },
   eyebrow: {
     fontFamily: FONT_MONO,
     fontSize: 11,
-    letterSpacing: '0.2em',
-    color: COLORS.amber,
+    letterSpacing: '0.22em',
+    color: COLORS.signal,
     fontWeight: 600,
-    marginBottom: 10,
+    marginBottom: 14,
   },
   title: {
     fontFamily: FONT_DISPLAY,
-    fontSize: 32,
+    fontSize: 'clamp(38px, 7vw, 56px)',
     fontWeight: 700,
-    margin: '0 0 8px',
+    color: COLORS.paper,
+    margin: '0 0 12px',
     letterSpacing: '0.02em',
+    lineHeight: 1.15,
   },
-  lead: { fontSize: 13, color: COLORS.inkSoft, lineHeight: 1.7, margin: 0 },
+  lead: { fontSize: 14.5, color: 'rgba(243,238,227,0.72)', lineHeight: 1.7, margin: 0, maxWidth: 480 },
+  heroWaveRow: {
+    marginTop: 30,
+    paddingTop: 20,
+    borderTop: '1px solid rgba(243,238,227,0.12)',
+    overflow: 'hidden',
+  },
   connectionError: {
     background: '#F4D9D2',
     color: '#7A2E1F',

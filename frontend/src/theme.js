@@ -54,11 +54,25 @@ export const FONT_MONO = "'JetBrains Mono', ui-monospace, 'SFMono-Regular', mono
 export const GLOBAL_KEYFRAMES = `
   * { box-sizing: border-box; }
   ::placeholder { color: ${COLORS.inkFaint}; }
+  ::selection { background: ${COLORS.signalSoft}; color: ${COLORS.signalDeep}; }
+  a, button { -webkit-tap-highlight-color: transparent; }
+  button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible {
+    outline: 2px solid ${COLORS.signal};
+    outline-offset: 2px;
+  }
   @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
   @keyframes reelSpin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
   @keyframes waveBar { 0%, 100% { transform: scaleY(0.32); } 50% { transform: scaleY(1); } }
   @keyframes signalPulse {
     0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(46,158,134,0.4); }
     50% { opacity: 0.5; box-shadow: 0 0 0 5px rgba(46,158,134,0); }
+  }
+  @keyframes heroDrift { 0% { transform: translateX(0); } 100% { transform: translateX(-40px); } }
+  @keyframes riseIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    * { animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; transition-duration: 0.001ms !important; }
   }
 `;

@@ -3,9 +3,13 @@ import { COLORS } from './theme';
 // シグネチャー要素: 波形バー。
 // 静止時はテープに刻まれた過去の波形のように固定表示、
 // 再生・生成が始まった瞬間だけ「信号」として生きて動く。
+const BASE_HEIGHTS = [0.45, 0.85, 0.6, 1, 0.5, 0.7, 0.4, 0.9, 0.55, 0.75, 0.35, 0.65];
+
 export function Waveform({ active, bars = 5, size = 'md', color }) {
-  const heights = [0.45, 0.85, 0.6, 1, 0.5, 0.7, 0.4].slice(0, bars);
-  const dims = size === 'sm' ? { w: 2, gap: 2, h: 13 } : { w: 2.5, gap: 2.5, h: 17 };
+  const heights = Array.from({ length: bars }, (_, i) => BASE_HEIGHTS[i % BASE_HEIGHTS.length]);
+  const dims = size === 'lg'
+    ? { w: 3, gap: 4, h: 56 }
+    : size === 'sm' ? { w: 2, gap: 2, h: 13 } : { w: 2.5, gap: 2.5, h: 17 };
   return (
     <span style={{ display: 'inline-flex', alignItems: 'flex-end', gap: dims.gap, height: dims.h, flexShrink: 0 }}>
       {heights.map((h, i) => (

@@ -240,6 +240,7 @@ function RecordModal({ onClose, onSave }) {
         <button
           disabled={!canSave}
           onClick={handleSave}
+          className="vm-btn-primary"
           style={{ ...styles.primaryBtn, opacity: canSave ? 1 : 0.4, cursor: canSave ? 'pointer' : 'not-allowed' }}
         >
           {saving ? '保存中...' : '声紋として保存'}
@@ -321,6 +322,7 @@ function UploadModal({ onClose, onSave }) {
         <button
           disabled={!canSave}
           onClick={handleSave}
+          className="vm-btn-primary"
           style={{ ...styles.primaryBtn, opacity: canSave ? 1 : 0.4, cursor: canSave ? 'pointer' : 'not-allowed' }}
         >
           {saving ? '保存中...' : '声紋として保存'}
@@ -448,6 +450,7 @@ function ChapterDraftModal({ onClose, onSave }) {
         <button
           disabled={!canSave}
           onClick={handleSave}
+          className="vm-btn-primary"
           style={{ ...styles.primaryBtn, opacity: canSave ? 1 : 0.4, cursor: canSave ? 'pointer' : 'not-allowed' }}
         >
           {saving ? 'アップロード中...' : 'この録音を下書きにする'}
@@ -458,11 +461,16 @@ function ChapterDraftModal({ onClose, onSave }) {
 }
 
 // ----- 声紋カード(カセットテープ風。再生中はリールが回り、波形が生きて動く) -----
-function VoiceProfileCard({ profile, colorKey, onDelete, playingId, onTogglePlay }) {
+function VoiceProfileCard({ profile, colorKey, index, onDelete, playingId, onTogglePlay }) {
   const c = ERA_COLORS[colorKey];
   const isPlaying = playingId === profile.id;
+  // 机の上に置かれたテープのように、カードごとにわずかに傾ける(-2/0/2度を巡回)
+  const tilt = [-1.4, 1.2, -0.8, 1.6, -1.8][index % 5];
   return (
-    <div style={{ ...styles.cassette, background: c.bgSoft, borderColor: c.bg }}>
+    <div
+      className="vm-cassette"
+      style={{ ...styles.cassette, background: c.bgSoft, borderColor: c.bg, transform: `rotate(${tilt}deg)` }}
+    >
       <div style={{ ...styles.cassetteLabel, background: c.bg }}>
         <span style={styles.cassetteEra}>{profile.eraTag || '年代未設定'}</span>
       </div>
@@ -517,7 +525,7 @@ function ChapterCard({ chapter, voiceProfiles, finalEngine, onUpdate, onDelete, 
   const step1Hidden = directMode && !hasDraft && chapter.draftStatus === 'idle';
 
   return (
-    <div style={styles.chapterCard}>
+    <div className="vm-chapter-card" style={styles.chapterCard}>
       <div style={styles.chapterHeaderRow}>
         <input
           style={styles.chapterTitleInput}
@@ -560,12 +568,13 @@ function ChapterCard({ chapter, voiceProfiles, finalEngine, onUpdate, onDelete, 
 
         {chapter.draftStatus === 'idle' && (
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            <button onClick={() => onOpenDraftUpload(chapter.id)} style={styles.stepBtn}>
+            <button className="vm-btn-step" onClick={() => onOpenDraftUpload(chapter.id)} style={styles.stepBtn}>
               本人の声で録音/アップロード
             </button>
             <button
               disabled={!chapter.body.trim()}
               onClick={() => onGenerateDraft(chapter.id)}
+              className="vm-btn-step"
               style={{ ...styles.stepBtnOutline, opacity: !chapter.body.trim() ? 0.4 : 1, cursor: !chapter.body.trim() ? 'not-allowed' : 'pointer' }}
             >
               TTSで読み上げを生成
@@ -638,6 +647,7 @@ function ChapterCard({ chapter, voiceProfiles, finalEngine, onUpdate, onDelete, 
             <button
               disabled={!step2Ready || !chapter.voiceProfileId}
               onClick={() => onApplyVoice(chapter.id)}
+              className="vm-btn-generate"
               style={{
                 ...styles.generateBtn,
                 opacity: (!step2Ready || !chapter.voiceProfileId) ? 0.4 : 1,
@@ -895,11 +905,24 @@ export default function VoiceNarrationApp() {
 
   return (
     <div style={styles.app}>
+      <style>{`
+        .vm-cassette { transition: transform 0.22s ease, box-shadow 0.22s ease; }
+        .vm-cassette:hover { transform: translateY(-3px) rotate(0deg) !important; box-shadow: 0 10px 20px rgba(42,36,30,0.18); }
+        .vm-chapter-card { transition: box-shadow 0.22s ease, border-color 0.22s ease; animation: riseIn 0.4s ease both; }
+        .vm-chapter-card:hover { box-shadow: 0 6px 18px rgba(42,36,30,0.09); border-color: ${COLORS.amber}; }
+        .vm-btn-primary, .vm-btn-generate, .vm-btn-step { transition: transform 0.15s ease, box-shadow 0.15s ease; }
+        .vm-btn-primary:hover, .vm-btn-generate:hover, .vm-btn-step:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(42,36,30,0.25); }
+        .vm-btn-primary:active, .vm-btn-generate:active, .vm-btn-step:active { transform: translateY(0); }
+      `}</style>
       <header style={styles.header}>
+        <div style={styles.headerGrain} />
         <div style={styles.headerInner}>
-          <div style={styles.headerEyebrow}>VOICE ARCHIVE</div>
+          <div style={styles.headerEyebrow}>VOICE ARCHIVE — SIGNAL FROM THE PAST</div>
           <h1 style={styles.headerTitle}>声の記憶帳</h1>
           <p style={styles.headerSub}>過去の録音から声紋を集め、人生の章ごとにその声でナレーションする</p>
+          <div style={styles.heroWaveRow}>
+            <Waveform active bars={40} size="lg" color={COLORS.signal} />
+          </div>
         </div>
       </header>
 
@@ -942,6 +965,7 @@ export default function VoiceNarrationApp() {
                 <VoiceProfileCard
                   key={p.id}
                   profile={p}
+                  index={i}
                   colorKey={ERA_PALETTE[i % ERA_PALETTE.length]}
                   onDelete={deleteVoiceProfile}
                   playingId={playingProfileId}
@@ -1028,27 +1052,45 @@ const styles = {
     fontSize: 13, color: COLORS.inkSoft, marginBottom: 20,
   },
   header: {
-    borderBottom: `1px solid ${COLORS.hairline}`,
-    padding: '40px 20px 32px',
-    background: `linear-gradient(180deg, ${COLORS.paperDeep} 0%, ${COLORS.paper} 100%)`,
+    position: 'relative',
+    overflow: 'hidden',
+    padding: '56px 20px 40px',
+    background: `radial-gradient(ellipse 900px 500px at 15% -10%, #34291d 0%, ${COLORS.ink} 55%)`,
   },
-  headerInner: { maxWidth: 720, margin: '0 auto' },
+  // 紙の粒子のようなノイズ。派手にしすぎず、暗いヒーローに質感だけ足す
+  headerGrain: {
+    position: 'absolute',
+    inset: 0,
+    opacity: 0.5,
+    pointerEvents: 'none',
+    backgroundImage:
+      'repeating-linear-gradient(115deg, rgba(255,255,255,0.025) 0px, rgba(255,255,255,0.025) 1px, transparent 1px, transparent 3px)',
+  },
+  headerInner: { maxWidth: 720, margin: '0 auto', position: 'relative' },
   headerEyebrow: {
     fontFamily: FONT_MONO,
     fontSize: 11,
-    letterSpacing: '0.2em',
-    color: COLORS.amber,
+    letterSpacing: '0.22em',
+    color: COLORS.signal,
     fontWeight: 600,
-    marginBottom: 10,
+    marginBottom: 14,
   },
   headerTitle: {
     fontFamily: FONT_DISPLAY,
-    fontSize: 32,
+    fontSize: 'clamp(38px, 7vw, 56px)',
     fontWeight: 700,
-    margin: '0 0 8px',
+    color: COLORS.paper,
+    margin: '0 0 12px',
     letterSpacing: '0.02em',
+    lineHeight: 1.15,
   },
-  headerSub: { fontSize: 14, color: COLORS.inkSoft, margin: 0, lineHeight: 1.6 },
+  headerSub: { fontSize: 14.5, color: 'rgba(243,238,227,0.72)', margin: 0, lineHeight: 1.7, maxWidth: 480 },
+  heroWaveRow: {
+    marginTop: 30,
+    paddingTop: 20,
+    borderTop: '1px solid rgba(243,238,227,0.12)',
+    overflow: 'hidden',
+  },
   main: { maxWidth: 720, margin: '0 auto', padding: '32px 20px 0' },
   section: { marginBottom: 40 },
   sectionHeaderRow: {
