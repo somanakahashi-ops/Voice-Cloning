@@ -1,16 +1,18 @@
 import { useState } from 'react';
 import VoiceNarrationApp from './VoiceNarrationApp';
 import ListeningRoom from './ListeningRoom';
+import { COLORS, FONT_MONO, GLOBAL_KEYFRAMES } from './theme';
 
 const tabStyle = (active) => ({
   border: 'none',
   background: 'none',
-  fontFamily: "'Noto Sans JP', system-ui, sans-serif",
-  fontSize: 13,
+  fontFamily: FONT_MONO,
+  fontSize: 12,
+  letterSpacing: '0.04em',
   fontWeight: active ? 700 : 500,
-  color: active ? '#B8773D' : '#6B6356',
-  borderBottom: active ? '2px solid #B8773D' : '2px solid transparent',
-  padding: '11px 4px 9px',
+  color: active ? COLORS.amber : COLORS.inkSoft,
+  borderBottom: active ? `2px solid ${COLORS.amber}` : '2px solid transparent',
+  padding: '12px 4px 10px',
   cursor: 'pointer',
 });
 
@@ -21,12 +23,13 @@ export default function App() {
   const [page, setPage] = useState(isStaticHost ? 'listen' : 'app');
   return (
     <div>
+      <style>{GLOBAL_KEYFRAMES}</style>
       <nav
         style={{
-          background: '#F4F0E6',
-          borderBottom: '1px solid #D8D0C0',
+          background: COLORS.paperDeep,
+          borderBottom: `1px solid ${COLORS.hairline}`,
           display: 'flex',
-          gap: 22,
+          gap: 26,
           justifyContent: 'center',
         }}
       >

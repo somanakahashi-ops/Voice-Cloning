@@ -1,5 +1,8 @@
 import { useEffect, useState } from 'react';
+import { Play, Pause } from 'lucide-react';
 import { API_BASE } from './VoiceNarrationApp';
+import { COLORS, FONT_DISPLAY, FONT_MONO } from './theme';
+import { Waveform } from './Waveform';
 
 // 聴き比べ音声(backend/storage/compare)の既知ファイルの表示情報。
 // キーは拡張子なしのファイル名(ローカルは.wav、公開ページは.mp3のため)。
@@ -46,18 +49,47 @@ function sortCompare(items) {
   });
 }
 
+// カード自身が再生ボタンと波形を持つ、テープ+信号のミニプレイヤー。
+// ブラウザ標準の<audio controls>は使わず、他カードのシグネチャーと統一する。
 function AudioCard({ title, note, seconds, url, adopted }) {
+  const [playing, setPlaying] = useState(false);
   // "/files/..."はバックエンド配信、"./listening/..."は公開ページ同梱の静的音声
   const src = url.startsWith('/') ? `${API_BASE}${url}` : url;
+  const elId = `listen-${url}`;
+
+  const toggle = () => {
+    const el = document.getElementById(elId);
+    if (!el) return;
+    if (playing) {
+      el.pause();
+    } else {
+      el.currentTime = 0;
+      el.play();
+    }
+  };
+
   return (
     <div style={styles.card}>
       <div style={styles.cardHead}>
+        <button onClick={toggle} style={{ ...styles.playBtn, background: adopted ? COLORS.signal : COLORS.ink }}>
+          {playing ? <Pause size={13} /> : <Play size={13} />}
+        </button>
         <span style={styles.cardTitle}>{title}</span>
         {adopted && <span style={styles.adoptedBadge}>採用</span>}
-        {seconds != null && <span style={styles.cardMeta}>{seconds}秒</span>}
+        <span style={styles.cardSpacer} />
+        <Waveform active={playing} size="sm" color={adopted ? COLORS.signal : COLORS.inkFaint} />
+        {seconds != null && <span style={styles.cardMeta}>{seconds}s</span>}
       </div>
       {note && <p style={styles.cardNote}>{note}</p>}
-      <audio controls preload="none" src={src} style={{ width: '100%' }} />
+      <audio
+        id={elId}
+        src={src}
+        preload="none"
+        onPlay={() => setPlaying(true)}
+        onPause={() => setPlaying(false)}
+        onEnded={() => setPlaying(false)}
+        style={{ display: 'none' }}
+      />
     </div>
   );
 }
@@ -152,32 +184,33 @@ export default function ListeningRoom() {
 const styles = {
   app: {
     minHeight: '100vh',
-    background: '#EDE8DF',
+    background: COLORS.paper,
     fontFamily: "'Noto Sans JP', system-ui, sans-serif",
-    color: '#2B2724',
+    color: COLORS.ink,
     paddingBottom: 80,
   },
   header: {
-    borderBottom: '1px solid #D8D0C0',
+    borderBottom: `1px solid ${COLORS.hairline}`,
     padding: '40px 20px 32px',
-    background: 'linear-gradient(180deg, #F4F0E6 0%, #EDE8DF 100%)',
+    background: `linear-gradient(180deg, ${COLORS.paperDeep} 0%, ${COLORS.paper} 100%)`,
   },
   inner: { maxWidth: 720, margin: '0 auto' },
   eyebrow: {
+    fontFamily: FONT_MONO,
     fontSize: 11,
-    letterSpacing: '0.18em',
-    color: '#B8773D',
+    letterSpacing: '0.2em',
+    color: COLORS.amber,
     fontWeight: 600,
-    marginBottom: 8,
+    marginBottom: 10,
   },
   title: {
-    fontFamily: "'Shippori Mincho', serif",
+    fontFamily: FONT_DISPLAY,
     fontSize: 32,
     fontWeight: 700,
     margin: '0 0 8px',
     letterSpacing: '0.02em',
   },
-  lead: { fontSize: 13, color: '#6B6356', lineHeight: 1.7, margin: 0 },
+  lead: { fontSize: 13, color: COLORS.inkSoft, lineHeight: 1.7, margin: 0 },
   connectionError: {
     background: '#F4D9D2',
     color: '#7A2E1F',
@@ -188,11 +221,11 @@ const styles = {
     lineHeight: 1.6,
     marginBottom: 20,
   },
-  loading: { fontSize: 13, color: '#8A8273' },
+  loading: { fontSize: 13, color: COLORS.inkSoft },
   staticNote: {
-    background: '#EFE6D2',
-    color: '#6B5A33',
-    border: '1px solid #D8C9A3',
+    background: COLORS.amberSoft,
+    color: COLORS.amberDeep,
+    border: `1px solid ${COLORS.amber}`,
     borderRadius: 10,
     padding: '10px 14px',
     fontSize: 12.5,
@@ -200,31 +233,37 @@ const styles = {
     marginBottom: 20,
   },
   sectionTitle: {
-    fontFamily: "'Shippori Mincho', serif",
+    fontFamily: FONT_DISPLAY,
     fontSize: 19,
     fontWeight: 700,
     margin: '0 0 6px',
   },
-  sectionNote: { fontSize: 12.5, color: '#6B6356', lineHeight: 1.6, margin: '0 0 14px' },
-  empty: { fontSize: 13, color: '#8A8273' },
+  sectionNote: { fontSize: 12.5, color: COLORS.inkSoft, lineHeight: 1.6, margin: '0 0 14px' },
+  empty: { fontSize: 13, color: COLORS.inkFaint },
   card: {
-    background: '#F7F3EA',
-    border: '1px solid #D8D0C0',
+    background: COLORS.card,
+    border: `1px solid ${COLORS.hairline}`,
     borderRadius: 12,
-    padding: '14px 16px',
+    padding: '13px 16px',
     marginBottom: 12,
   },
-  cardHead: { display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 4 },
+  cardHead: { display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 },
+  playBtn: {
+    width: 26, height: 26, borderRadius: '50%', border: 'none', color: 'white',
+    display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0,
+  },
   cardTitle: { fontSize: 14, fontWeight: 600 },
+  cardSpacer: { flex: 1 },
   adoptedBadge: {
-    fontSize: 10.5,
+    fontFamily: FONT_MONO,
+    fontSize: 10,
     fontWeight: 700,
-    color: '#F7F3EA',
-    background: '#B8773D',
+    color: COLORS.card,
+    background: COLORS.amber,
     borderRadius: 999,
     padding: '2px 9px',
-    letterSpacing: '0.08em',
+    letterSpacing: '0.06em',
   },
-  cardMeta: { fontSize: 12, color: '#8A8273', marginLeft: 'auto' },
-  cardNote: { fontSize: 12.5, color: '#6B6356', lineHeight: 1.6, margin: '0 0 10px' },
+  cardMeta: { fontFamily: FONT_MONO, fontSize: 11, color: COLORS.inkFaint },
+  cardNote: { fontSize: 12.5, color: COLORS.inkSoft, lineHeight: 1.6, margin: '6px 0 0 36px' },
 };
