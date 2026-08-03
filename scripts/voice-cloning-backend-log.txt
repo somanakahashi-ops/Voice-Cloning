@@ -8,3 +8,6 @@
 2026-08-03 22:25:40 uvicorn started pid=26588
 2026-08-03 22:27:01 uvicorn exited code=; restarting in 15s
 2026-08-03 22:27:16 uvicorn started pid=23140
+2026-08-03 22:40:42 already running on port 8000; exit
+2026-08-03 22:41:02 uvicorn exited code=; restarting in 15s
+2026-08-03 22:41:17 uvicorn started pid=28280
