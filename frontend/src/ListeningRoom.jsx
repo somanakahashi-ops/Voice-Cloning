@@ -3,6 +3,7 @@ import { Play, Pause } from 'lucide-react';
 import { API_BASE } from './VoiceNarrationApp';
 import { COLORS, FONT_DISPLAY, FONT_MONO } from './theme';
 import { Waveform } from './Waveform';
+import { VUMeter } from './VUMeter';
 
 // 聴き比べ音声(backend/storage/compare)の既知ファイルの表示情報。
 // キーは拡張子なしのファイル名(ローカルは.wav、公開ページは.mp3のため)。
@@ -51,11 +52,13 @@ function sortCompare(items) {
 
 // カード自身が再生ボタンと波形を持つ、テープ+信号のミニプレイヤー。
 // ブラウザ標準の<audio controls>は使わず、他カードのシグネチャーと統一する。
-function AudioCard({ title, note, seconds, url, adopted }) {
+function AudioCard({ title, note, seconds, url, adopted, onPlayingChange }) {
   const [playing, setPlaying] = useState(false);
   // "/files/..."はバックエンド配信、"./listening/..."は公開ページ同梱の静的音声
   const src = url.startsWith('/') ? `${API_BASE}${url}` : url;
   const elId = `listen-${url}`;
+
+  const setAndReport = (v) => { setPlaying(v); onPlayingChange?.(v); };
 
   const toggle = () => {
     const el = document.getElementById(elId);
@@ -85,9 +88,9 @@ function AudioCard({ title, note, seconds, url, adopted }) {
         id={elId}
         src={src}
         preload="none"
-        onPlay={() => setPlaying(true)}
-        onPause={() => setPlaying(false)}
-        onEnded={() => setPlaying(false)}
+        onPlay={() => setAndReport(true)}
+        onPause={() => setAndReport(false)}
+        onEnded={() => setAndReport(false)}
         style={{ display: 'none' }}
       />
     </div>
@@ -98,6 +101,14 @@ export default function ListeningRoom() {
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
   const [staticMode, setStaticMode] = useState(false);
+  const [playingUrls, setPlayingUrls] = useState(() => new Set());
+  const reportPlaying = (url, isPlaying) => {
+    setPlayingUrls((prev) => {
+      const next = new Set(prev);
+      if (isPlaying) next.add(url); else next.delete(url);
+      return next;
+    });
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -131,14 +142,25 @@ export default function ListeningRoom() {
       `}</style>
       <header style={styles.header}>
         <div style={styles.headerGrain} />
+        <span style={{ ...styles.rivet, top: 12, left: 12 }} />
+        <span style={{ ...styles.rivet, top: 12, right: 12 }} />
         <div style={styles.inner}>
-          <div style={styles.eyebrow}>LISTENING ROOM — SIGNAL FROM THE PAST</div>
+          <div style={styles.brandRow}>
+            <div style={styles.brandPlate}>
+              <span style={styles.brandModel}>MODEL VM-1</span>
+              <span style={styles.brandEyebrow}>LISTENING ROOM</span>
+            </div>
+          </div>
           <h1 style={styles.title}>試聴室</h1>
           <p style={styles.lead}>
             生成・変換した音声をブラウザで聴けます。本人録音の下書きは非公開領域にあり、ここには含まれません。
           </p>
-          <div style={styles.heroWaveRow}>
-            <Waveform active bars={40} size="lg" color={COLORS.signal} />
+          <div style={styles.meterRow}>
+            <VUMeter active={playingUrls.size > 0} size={160} />
+            <div style={styles.meterCaption}>
+              <span style={styles.meterCaptionLabel}>SIGNAL LEVEL</span>
+              <span style={styles.meterCaptionText}>再生中の音声がここに現れます</span>
+            </div>
           </div>
         </div>
       </header>
@@ -162,7 +184,15 @@ export default function ListeningRoom() {
               {compare.length === 0 && <p style={styles.empty}>聴き比べ音声はまだありません。</p>}
               {compare.map((item) => {
                 const info = COMPARE_INFO[stemOf(item.name)] || { title: item.name };
-                return <AudioCard key={item.name} {...info} seconds={item.seconds} url={item.url} />;
+                return (
+                  <AudioCard
+                    key={item.name}
+                    {...info}
+                    seconds={item.seconds}
+                    url={item.url}
+                    onPlayingChange={(v) => reportPlaying(item.url, v)}
+                  />
+                );
               })}
             </section>
 
@@ -179,6 +209,7 @@ export default function ListeningRoom() {
                   note={item.label ? item.name : null}
                   seconds={item.seconds}
                   url={item.url}
+                  onPlayingChange={(v) => reportPlaying(item.url, v)}
                 />
               ))}
             </section>
@@ -200,8 +231,9 @@ const styles = {
   header: {
     position: 'relative',
     overflow: 'hidden',
-    padding: '56px 20px 40px',
-    background: `radial-gradient(ellipse 900px 500px at 15% -10%, #34291d 0%, ${COLORS.ink} 55%)`,
+    padding: '28px 20px 36px',
+    background: `linear-gradient(180deg, ${COLORS.deckPanel} 0%, ${COLORS.deck} 100%)`,
+    borderBottom: `3px solid ${COLORS.brassDeep}`,
   },
   headerGrain: {
     position: 'absolute',
@@ -211,31 +243,44 @@ const styles = {
     backgroundImage:
       'repeating-linear-gradient(115deg, rgba(255,255,255,0.025) 0px, rgba(255,255,255,0.025) 1px, transparent 1px, transparent 3px)',
   },
+  rivet: {
+    position: 'absolute',
+    width: 6, height: 6, borderRadius: '50%',
+    background: `linear-gradient(135deg, ${COLORS.brassBright}, ${COLORS.brassDeep})`,
+    boxShadow: '0 1px 1px rgba(0,0,0,0.5)',
+  },
   inner: { maxWidth: 720, margin: '0 auto', position: 'relative' },
-  eyebrow: {
-    fontFamily: FONT_MONO,
-    fontSize: 11,
-    letterSpacing: '0.22em',
-    color: COLORS.signal,
-    fontWeight: 600,
-    marginBottom: 14,
+  brandRow: { marginBottom: 20 },
+  brandPlate: { display: 'flex', flexDirection: 'column', gap: 3 },
+  brandModel: {
+    fontFamily: FONT_MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.16em',
+    color: COLORS.brassBright,
+  },
+  brandEyebrow: {
+    fontFamily: FONT_MONO, fontSize: 9.5, letterSpacing: '0.14em',
+    color: 'rgba(243,238,227,0.4)',
   },
   title: {
     fontFamily: FONT_DISPLAY,
-    fontSize: 'clamp(38px, 7vw, 56px)',
+    fontSize: 'clamp(34px, 6.4vw, 50px)',
     fontWeight: 700,
     color: COLORS.paper,
-    margin: '0 0 12px',
+    margin: '0 0 10px',
     letterSpacing: '0.02em',
     lineHeight: 1.15,
   },
-  lead: { fontSize: 14.5, color: 'rgba(243,238,227,0.72)', lineHeight: 1.7, margin: 0, maxWidth: 480 },
-  heroWaveRow: {
-    marginTop: 30,
+  lead: { fontSize: 14, color: 'rgba(243,238,227,0.68)', lineHeight: 1.7, margin: 0, maxWidth: 480 },
+  meterRow: {
+    marginTop: 22,
     paddingTop: 20,
     borderTop: '1px solid rgba(243,238,227,0.12)',
-    overflow: 'hidden',
+    display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'wrap',
   },
+  meterCaption: { display: 'flex', flexDirection: 'column', gap: 4 },
+  meterCaptionLabel: {
+    fontFamily: FONT_MONO, fontSize: 10.5, letterSpacing: '0.18em', color: COLORS.signal, fontWeight: 700,
+  },
+  meterCaptionText: { fontSize: 12.5, color: 'rgba(243,238,227,0.6)' },
   connectionError: {
     background: '#F4D9D2',
     color: '#7A2E1F',

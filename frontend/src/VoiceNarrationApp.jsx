@@ -3,6 +3,7 @@ import { Mic, Square, Upload, Play, Pause, Plus, X, Check, Loader2, FileAudio, C
 import { COLORS, ERA_COLORS, ERA_PALETTE, FONT_DISPLAY, FONT_BODY, FONT_MONO } from './theme';
 import { Waveform, SignalDot } from './Waveform';
 import { Reel } from './Reel';
+import { VUMeter } from './VUMeter';
 
 // ============================================================
 // データモデル(設計通りの構造をフロントの状態として再現)
@@ -461,49 +462,69 @@ function ChapterDraftModal({ onClose, onSave }) {
   );
 }
 
-// ----- 声紋カード(カセットテープ風。再生中はリールが回り、波形が生きて動く) -----
-function VoiceProfileCard({ profile, colorKey, index, onDelete, playingId, onTogglePlay }) {
-  const c = ERA_COLORS[colorKey];
-  const isPlaying = playingId === profile.id;
-  // 机の上に散らばったテープのように、カードごとに傾き・高さ・影の向きをずらす
-  const tilt = [-2.2, 1.8, -1.2, 2.6, -2.8, 1.4, -1.8, 2.2][index % 8];
-  const lift = [0, 4, -3, 3, -4, 2, -2, 4][index % 8];
-  const shadowX = tilt >= 0 ? 4 : -4;
+// ----- LCD風の数値表示(デッキ筐体の残数カウンター) -----
+function LcdStat({ label, value }) {
   return (
-    <div
-      className="vm-cassette"
+    <div style={styles.lcdStat}>
+      <span style={styles.lcdStatValue}>{value}</span>
+      <span style={styles.lcdStatLabel}>{label}</span>
+    </div>
+  );
+}
+
+// ----- 声紋の棚(スパイン) -----
+// 本棚に並んだ背表紙のように、声紋を縦長の一枚として棚に並べる。
+// 回転・浮遊させないのでレイアウト崩れやはみ出しの心配がなく、
+// 選ぶと下のデッキ窓に「読み込まれる」体験にする。
+function Spine({ profile, colorKey, active, onSelect }) {
+  const c = ERA_COLORS[colorKey];
+  return (
+    <button
+      className="vm-spine"
+      onClick={onSelect}
       style={{
-        ...styles.cassette,
-        background: c.bgSoft,
-        borderColor: c.bg,
-        transform: `rotate(${tilt}deg) translateY(${lift}px)`,
-        boxShadow: `${shadowX}px 8px 14px rgba(42,36,30,0.16)`,
+        ...styles.spine,
+        background: active ? c.bgSoft : COLORS.card,
+        borderColor: active ? c.bg : COLORS.hairline,
       }}
     >
-      <div style={{ ...styles.cassetteLabel, background: c.bg }}>
-        <span style={styles.cassetteEra}>{profile.eraTag || '年代未設定'}</span>
+      <span style={{ ...styles.spineStripe, background: c.bg }} />
+      <span style={styles.spineText}>{profile.label}</span>
+      <span style={{ ...styles.spineEra, color: c.text }}>{profile.eraTag || '—'}</span>
+    </button>
+  );
+}
+
+// ----- デッキ窓 -----
+// 選択中の声紋だけが「今デッキに挿入されている」状態として、
+// リールが回り波形が生きて動く再生窓に表示される。
+function DeckWindow({ profile, colorKey, isPlaying, onTogglePlay, onDelete }) {
+  const c = ERA_COLORS[colorKey];
+  return (
+    <div style={styles.deckWindow}>
+      <div style={styles.deckWindowReels}>
+        <Reel spinning={isPlaying} color={COLORS.paper} size={28} />
+        <div style={styles.deckWindowTapeLine} />
+        <Reel spinning={isPlaying} color={COLORS.paper} size={28} />
       </div>
-      <div style={styles.cassetteBody}>
-        <div style={styles.cassetteReels}>
-          <Reel spinning={isPlaying} color={c.bg} />
-          <Reel spinning={isPlaying} color={c.bg} />
+      <div style={styles.deckWindowInfo}>
+        <div style={styles.deckWindowTitleRow}>
+          <span style={{ ...styles.deckWindowEraTag, background: c.bg }}>{profile.eraTag || '年代未設定'}</span>
+          <span style={styles.deckWindowTitle}>{profile.label}</span>
         </div>
-        <div style={styles.cassetteTitle}>{profile.label}</div>
-        <div style={styles.cassetteMeta}>
-          <FileAudio size={12} /> {profile.sourceType}
-          {profile.durationSec != null && <> · <Clock size={12} style={{ marginLeft: 4 }} /> {formatTime(profile.durationSec)}</>}
+        <div style={styles.deckWindowMeta}>
+          <FileAudio size={11} /> {profile.sourceType}
+          {profile.durationSec != null && <> · <Clock size={11} style={{ marginLeft: 4 }} /> {formatTime(profile.durationSec)}</>}
         </div>
-        <div style={styles.cassetteWave}>
-          <Waveform active={isPlaying} size="sm" color={c.bg} />
-        </div>
-        <div style={styles.cassetteActions}>
-          <button onClick={() => onTogglePlay(profile.id)} style={{ ...styles.smallIconBtn, color: c.text }}>
-            {isPlaying ? <Pause size={14} /> : <Play size={14} />}
-          </button>
-          <button onClick={() => onDelete(profile.id)} style={{ ...styles.smallIconBtn, color: COLORS.recordRed }}>
-            <Trash2 size={14} />
-          </button>
-        </div>
+        <Waveform active={isPlaying} size="sm" bars={18} color={COLORS.signal} />
+      </div>
+      <div style={styles.deckWindowActions}>
+        <button onClick={() => onTogglePlay(profile.id)} style={styles.deckPlayBtn}>
+          {isPlaying ? <Pause size={16} /> : <Play size={16} />}
+        </button>
+        <button onClick={() => onDelete(profile.id)} style={styles.deckIconBtn}>
+          <Trash2 size={14} />
+        </button>
       </div>
       <audio
         id={`audio-${profile.id}`}
@@ -700,6 +721,7 @@ export default function VoiceNarrationApp() {
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [draftModalChapterId, setDraftModalChapterId] = useState(null);
   const [playingProfileId, setPlayingProfileId] = useState(null);
+  const [focusedProfileId, setFocusedProfileId] = useState(null);
   const [playingChapterId, setPlayingChapterId] = useState(null);
   const [loadError, setLoadError] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -729,6 +751,14 @@ export default function VoiceNarrationApp() {
     })();
     return () => { cancelled = true; };
   }, []);
+
+  // 棚から選択中の声紋がいなくなった(未選択・削除された)場合は先頭をデッキに読み込む
+  useEffect(() => {
+    if (voiceProfiles.length === 0) { setFocusedProfileId(null); return; }
+    if (!voiceProfiles.some((p) => p.id === focusedProfileId)) {
+      setFocusedProfileId(voiceProfiles[0].id);
+    }
+  }, [voiceProfiles, focusedProfileId]);
 
   // 生成中(generating)の章があれば、完了するまで定期的にステータスを取得する
   useEffect(() => {
@@ -907,12 +937,15 @@ export default function VoiceNarrationApp() {
   };
 
   const doneCount = chapters.filter((c) => c.finalStatus === 'done').length;
+  const anyGenerating = chapters.some((c) => c.draftStatus === 'generating' || c.finalStatus === 'generating');
+  const focusedProfile = voiceProfiles.find((p) => p.id === focusedProfileId) || null;
+  const focusedColorKey = ERA_PALETTE[Math.max(0, voiceProfiles.findIndex((p) => p.id === focusedProfileId)) % ERA_PALETTE.length];
 
   return (
     <div style={styles.app}>
       <style>{`
-        .vm-cassette { transition: transform 0.25s cubic-bezier(0.34, 1.4, 0.64, 1), box-shadow 0.25s ease; }
-        .vm-cassette:hover { transform: translateY(-4px) rotate(0deg) scale(1.025) !important; box-shadow: 0 10px 18px rgba(42,36,30,0.2) !important; }
+        .vm-spine { transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease; }
+        .vm-spine:hover { transform: translateY(-3px); box-shadow: 0 4px 10px rgba(42,36,30,0.14); }
         .vm-chapter-card { transition: box-shadow 0.22s ease, border-color 0.22s ease; animation: riseIn 0.4s ease both; }
         .vm-chapter-card:hover { box-shadow: 0 6px 18px rgba(42,36,30,0.09); border-color: ${COLORS.amber}; }
         .vm-btn-primary, .vm-btn-generate, .vm-btn-step { transition: transform 0.15s ease, box-shadow 0.15s ease; }
@@ -921,12 +954,27 @@ export default function VoiceNarrationApp() {
       `}</style>
       <header style={styles.header}>
         <div style={styles.headerGrain} />
+        <span style={{ ...styles.rivet, top: 12, left: 12 }} />
+        <span style={{ ...styles.rivet, top: 12, right: 12 }} />
         <div style={styles.headerInner}>
-          <div style={styles.headerEyebrow}>VOICE ARCHIVE — SIGNAL FROM THE PAST</div>
+          <div style={styles.brandRow}>
+            <div style={styles.brandPlate}>
+              <span style={styles.brandModel}>MODEL VM-1</span>
+              <span style={styles.brandEyebrow}>VOICE ARCHIVE CONSOLE</span>
+            </div>
+            <div style={styles.lcdReadout}>
+              <LcdStat label="声紋" value={String(voiceProfiles.length).padStart(2, '0')} />
+              <LcdStat label="完成章" value={`${doneCount}/${chapters.length}`} />
+            </div>
+          </div>
           <h1 style={styles.headerTitle}>声の記憶帳</h1>
           <p style={styles.headerSub}>過去の録音から声紋を集め、人生の章ごとにその声でナレーションする</p>
-          <div style={styles.heroWaveRow}>
-            <Waveform active bars={40} size="lg" color={COLORS.signal} />
+          <div style={styles.meterRow}>
+            <VUMeter active={loading || anyGenerating || playingProfileId != null} size={190} />
+            <div style={styles.meterCaption}>
+              <span style={styles.meterCaptionLabel}>SIGNAL LEVEL</span>
+              <span style={styles.meterCaptionText}>過去の声を、今読み取っています</span>
+            </div>
           </div>
         </div>
       </header>
@@ -965,19 +1013,29 @@ export default function VoiceNarrationApp() {
               <p style={styles.emptyText}>まだ声紋がありません。録音するか、過去の音声ファイルを追加してください。</p>
             </div>
           ) : (
-            <div style={styles.cassetteRow}>
-              {voiceProfiles.map((p, i) => (
-                <VoiceProfileCard
-                  key={p.id}
-                  profile={p}
-                  index={i}
-                  colorKey={ERA_PALETTE[i % ERA_PALETTE.length]}
-                  onDelete={deleteVoiceProfile}
-                  playingId={playingProfileId}
+            <>
+              <div style={styles.shelf}>
+                {voiceProfiles.map((p, i) => (
+                  <Spine
+                    key={p.id}
+                    profile={p}
+                    colorKey={ERA_PALETTE[i % ERA_PALETTE.length]}
+                    active={focusedProfileId === p.id}
+                    onSelect={() => setFocusedProfileId(p.id)}
+                  />
+                ))}
+              </div>
+              <div style={styles.shelfBoard} />
+              {focusedProfile && (
+                <DeckWindow
+                  profile={focusedProfile}
+                  colorKey={focusedColorKey}
+                  isPlaying={playingProfileId === focusedProfile.id}
                   onTogglePlay={togglePlayProfile}
+                  onDelete={deleteVoiceProfile}
                 />
-              ))}
-            </div>
+              )}
+            </>
           )}
         </section>
 
@@ -995,8 +1053,8 @@ export default function VoiceNarrationApp() {
             {chapters.map((c, i) => (
               <div key={c.id} style={styles.timelineItem}>
                 <div style={styles.timelineMarker}>
-                  <div style={styles.timelineDot} />
-                  {i < chapters.length - 1 && <div style={styles.timelineLine} />}
+                  <div style={styles.chapterCounter}>{String(i + 1).padStart(3, '0')}</div>
+                  {i < chapters.length - 1 && <div style={styles.sprocketRail} />}
                 </div>
                 <div style={{ flex: 1 }}>
                   <ChapterCard
@@ -1059,10 +1117,11 @@ const styles = {
   header: {
     position: 'relative',
     overflow: 'hidden',
-    padding: '56px 20px 40px',
-    background: `radial-gradient(ellipse 900px 500px at 15% -10%, #34291d 0%, ${COLORS.ink} 55%)`,
+    padding: '28px 20px 36px',
+    background: `linear-gradient(180deg, ${COLORS.deckPanel} 0%, ${COLORS.deck} 100%)`,
+    borderBottom: `3px solid ${COLORS.brassDeep}`,
   },
-  // 紙の粒子のようなノイズ。派手にしすぎず、暗いヒーローに質感だけ足す
+  // ブラシ仕上げの金属パネルの質感。派手にしすぎず、暗いヒーローに質感だけ足す
   headerGrain: {
     position: 'absolute',
     inset: 0,
@@ -1071,31 +1130,61 @@ const styles = {
     backgroundImage:
       'repeating-linear-gradient(115deg, rgba(255,255,255,0.025) 0px, rgba(255,255,255,0.025) 1px, transparent 1px, transparent 3px)',
   },
-  headerInner: { maxWidth: 720, margin: '0 auto', position: 'relative' },
-  headerEyebrow: {
-    fontFamily: FONT_MONO,
-    fontSize: 11,
-    letterSpacing: '0.22em',
-    color: COLORS.signal,
-    fontWeight: 600,
-    marginBottom: 14,
+  rivet: {
+    position: 'absolute',
+    width: 6, height: 6, borderRadius: '50%',
+    background: `linear-gradient(135deg, ${COLORS.brassBright}, ${COLORS.brassDeep})`,
+    boxShadow: '0 1px 1px rgba(0,0,0,0.5)',
   },
+  headerInner: { maxWidth: 720, margin: '0 auto', position: 'relative' },
+  brandRow: {
+    display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start',
+    marginBottom: 22, flexWrap: 'wrap', gap: 12,
+  },
+  brandPlate: { display: 'flex', flexDirection: 'column', gap: 3 },
+  brandModel: {
+    fontFamily: FONT_MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.16em',
+    color: COLORS.brassBright,
+  },
+  brandEyebrow: {
+    fontFamily: FONT_MONO, fontSize: 9.5, letterSpacing: '0.14em',
+    color: 'rgba(243,238,227,0.4)',
+  },
+  lcdReadout: { display: 'flex', gap: 8 },
+  lcdStat: {
+    background: '#0E0D0A',
+    border: `1px solid ${COLORS.brassDeep}`,
+    borderRadius: 4,
+    padding: '5px 10px',
+    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1,
+    minWidth: 46,
+  },
+  lcdStatValue: {
+    fontFamily: FONT_MONO, fontSize: 15, fontWeight: 700, color: COLORS.signal,
+    animation: 'counterFlicker 6s ease-in-out infinite',
+  },
+  lcdStatLabel: { fontFamily: FONT_MONO, fontSize: 8, letterSpacing: '0.08em', color: 'rgba(243,238,227,0.4)' },
   headerTitle: {
     fontFamily: FONT_DISPLAY,
-    fontSize: 'clamp(38px, 7vw, 56px)',
+    fontSize: 'clamp(34px, 6.4vw, 50px)',
     fontWeight: 700,
     color: COLORS.paper,
-    margin: '0 0 12px',
+    margin: '0 0 10px',
     letterSpacing: '0.02em',
     lineHeight: 1.15,
   },
-  headerSub: { fontSize: 14.5, color: 'rgba(243,238,227,0.72)', margin: 0, lineHeight: 1.7, maxWidth: 480 },
-  heroWaveRow: {
-    marginTop: 30,
+  headerSub: { fontSize: 14, color: 'rgba(243,238,227,0.68)', margin: '0 0 8px', lineHeight: 1.7, maxWidth: 480 },
+  meterRow: {
+    marginTop: 22,
     paddingTop: 20,
     borderTop: '1px solid rgba(243,238,227,0.12)',
-    overflow: 'hidden',
+    display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'wrap',
   },
+  meterCaption: { display: 'flex', flexDirection: 'column', gap: 4 },
+  meterCaptionLabel: {
+    fontFamily: FONT_MONO, fontSize: 10.5, letterSpacing: '0.18em', color: COLORS.signal, fontWeight: 700,
+  },
+  meterCaptionText: { fontSize: 12.5, color: 'rgba(243,238,227,0.6)' },
   main: { maxWidth: 720, margin: '0 auto', padding: '32px 20px 0' },
   section: { marginBottom: 40 },
   sectionHeaderRow: {
@@ -1140,43 +1229,89 @@ const styles = {
   },
   emptyText: { fontSize: 13, margin: 0, maxWidth: 320 },
 
-  // overflow-x:auto は仕様上、縦方向も自動クリップの対象になる。
-  // 傾き・持ち上げ・影のはみ出し分を吸収する余白を確保しないと、
-  // 影が途中で切れたり意図しない縦スクロールバーが出たりする。
-  cassetteRow: {
+  // 本棚のように、声紋を横並びのスパイン(背表紙)として並べる。
+  // 回転や浮遊をさせないので、はみ出し・クリップの心配がない。
+  shelf: {
     display: 'flex',
-    gap: 18,
-    overflowX: 'auto',
-    overflowY: 'hidden',
-    paddingTop: 18,
-    paddingBottom: 40,
-    paddingLeft: 4,
-    paddingRight: 4,
+    flexWrap: 'wrap',
+    alignItems: 'flex-end',
+    gap: 8,
+    paddingTop: 6,
   },
-  cassette: {
-    minWidth: 172,
-    borderRadius: 10,
+  shelfBoard: {
+    height: 3,
+    background: `linear-gradient(90deg, transparent, ${COLORS.hairline} 8%, ${COLORS.hairline} 92%, transparent)`,
+    marginTop: -1,
+    marginBottom: 18,
+    boxShadow: `0 2px 3px rgba(42,36,30,0.08)`,
+  },
+  spine: {
+    width: 52,
+    height: 132,
+    borderRadius: 6,
     border: '1.5px solid',
-    overflow: 'hidden',
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    padding: '10px 0 8px',
+    cursor: 'pointer',
     flexShrink: 0,
-    boxShadow: '0 2px 8px rgba(42,36,30,0.1)',
   },
-  cassetteLabel: {
-    padding: '6px 10px',
+  spineStripe: { width: '70%', height: 4, borderRadius: 2, marginBottom: 10, flexShrink: 0 },
+  spineText: {
+    writingMode: 'vertical-rl',
+    textOrientation: 'mixed',
+    fontSize: 12.5,
+    fontWeight: 700,
+    color: COLORS.ink,
+    flex: 1,
+    letterSpacing: '0.02em',
   },
-  cassetteEra: {
+  spineEra: {
     fontFamily: FONT_MONO,
-    fontSize: 10.5,
-    color: 'white',
-    fontWeight: 600,
-    letterSpacing: '0.04em',
+    fontSize: 8.5,
+    fontWeight: 700,
+    marginTop: 8,
+    writingMode: 'vertical-rl',
   },
-  cassetteBody: { padding: '12px 12px 10px', background: 'rgba(255,255,255,0.5)' },
-  cassetteReels: { display: 'flex', justifyContent: 'space-between', padding: '0 10px', marginBottom: 8 },
-  cassetteTitle: { fontSize: 13.5, fontWeight: 700, marginBottom: 4 },
-  cassetteMeta: { fontFamily: FONT_MONO, fontSize: 10, color: COLORS.inkSoft, display: 'flex', alignItems: 'center', gap: 4, marginBottom: 8 },
-  cassetteWave: { padding: '2px 0 10px' },
-  cassetteActions: { display: 'flex', gap: 6 },
+  // デッキ窓: 選択中の声紋が「読み込まれている」ことを示す再生パネル
+  deckWindow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 16,
+    background: `linear-gradient(180deg, ${COLORS.deckPanel} 0%, ${COLORS.deck} 100%)`,
+    borderRadius: 12,
+    padding: '14px 16px',
+    boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.05), 0 3px 10px rgba(42,36,30,0.15)',
+  },
+  deckWindowReels: { display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 },
+  deckWindowTapeLine: { width: 18, height: 1.5, background: 'rgba(243,238,227,0.25)' },
+  deckWindowInfo: { flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 5 },
+  deckWindowTitleRow: { display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
+  deckWindowEraTag: {
+    fontFamily: FONT_MONO, fontSize: 9.5, fontWeight: 700, color: 'white',
+    padding: '2px 7px', borderRadius: 4, letterSpacing: '0.04em',
+  },
+  deckWindowTitle: { fontSize: 14, fontWeight: 700, color: COLORS.paper },
+  deckWindowMeta: {
+    fontFamily: FONT_MONO, fontSize: 10, color: 'rgba(243,238,227,0.5)',
+    display: 'flex', alignItems: 'center', gap: 4,
+  },
+  deckPlayBtn: {
+    width: 34, height: 34, borderRadius: '50%',
+    background: COLORS.signal, color: COLORS.signalDeep, border: 'none',
+    display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0,
+  },
+  deckWindowActions: { display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 },
+  deckIconBtn: {
+    background: 'rgba(243,238,227,0.06)',
+    border: '1px solid rgba(243,238,227,0.15)',
+    borderRadius: 6,
+    width: 30, height: 30,
+    display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
+    color: COLORS.recordRed,
+    flexShrink: 0,
+  },
   smallIconBtn: {
     background: 'white',
     border: '1px solid rgba(42,36,30,0.15)',
@@ -1192,8 +1327,28 @@ const styles = {
   timeline: { display: 'flex', flexDirection: 'column' },
   timelineItem: { display: 'flex', gap: 14 },
   timelineMarker: { display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 18 },
-  timelineDot: { width: 9, height: 9, borderRadius: '50%', background: COLORS.amber, flexShrink: 0 },
-  timelineLine: { width: 1.5, flex: 1, background: COLORS.hairline, marginTop: 4, marginBottom: 4, minHeight: 24 },
+  // テープの残数カウンター風の章番号。章立ては実際に順序を持つ情報なので数字に意味がある
+  chapterCounter: {
+    background: COLORS.ink,
+    color: COLORS.signal,
+    fontFamily: FONT_MONO,
+    fontSize: 11,
+    fontWeight: 700,
+    letterSpacing: '0.03em',
+    borderRadius: 4,
+    padding: '4px 6px',
+    boxShadow: 'inset 0 0 0 1px rgba(0,0,0,0.35)',
+    flexShrink: 0,
+  },
+  // フィルムのパーフォレーション(スプロケット穴)を思わせる点線のレール
+  sprocketRail: {
+    width: 1.5,
+    flex: 1,
+    marginTop: 6,
+    marginBottom: 4,
+    minHeight: 20,
+    backgroundImage: `repeating-linear-gradient(180deg, ${COLORS.hairline} 0px, ${COLORS.hairline} 3px, transparent 3px, transparent 8px)`,
+  },
 
   chapterCard: {
     background: COLORS.card,

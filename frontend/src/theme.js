@@ -36,6 +36,14 @@ export const COLORS = {
   signalDeep: '#153229',
 
   recordRed: '#B8402E',
+
+  // デッキ筐体(コンソール)の金属・真鍮まわり
+  deck: '#1B1713',
+  deckPanel: '#241E19',
+  deckLight: '#332920',
+  brass: '#B08D4F',
+  brassBright: '#D9B876',
+  brassDeep: '#5E4A26',
 };
 
 export const ERA_COLORS = {
@@ -87,6 +95,23 @@ export const GLOBAL_KEYFRAMES = `
   @keyframes riseIn {
     from { opacity: 0; transform: translateY(10px); }
     to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes ledBlink {
+    0%, 100% { opacity: 1; } 50% { opacity: 0.3; }
+  }
+  @keyframes counterFlicker {
+    0%, 96%, 100% { opacity: 1; } 97% { opacity: 0.4; } 98% { opacity: 1; }
+  }
+  @keyframes needleSwing {
+    0% { transform: rotate(-30deg); }
+    12% { transform: rotate(18deg); }
+    24% { transform: rotate(-8deg); }
+    38% { transform: rotate(38deg); }
+    50% { transform: rotate(4deg); }
+    63% { transform: rotate(-22deg); }
+    76% { transform: rotate(28deg); }
+    88% { transform: rotate(-4deg); }
+    100% { transform: rotate(-30deg); }
   }
   @media (prefers-reduced-motion: reduce) {
     * { animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; transition-duration: 0.001ms !important; }
