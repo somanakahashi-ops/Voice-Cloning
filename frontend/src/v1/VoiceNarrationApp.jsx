@@ -1,8 +1,7 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { Mic, Square, Upload, Play, Pause, Plus, X, Check, Loader2, FileAudio, Clock, BookOpen, Trash2 } from 'lucide-react';
-import { COLORS, ERA_COLORS, ERA_PALETTE, FONT_HERO, FONT_DISPLAY, FONT_BODY, FONT_MONO } from './theme';
-import { Waveform } from './Waveform';
-import { SpectralBloom, SignalDot } from './SpectralBloom';
+import { COLORS, ERA_COLORS, ERA_PALETTE, FONT_DISPLAY, FONT_BODY, FONT_MONO } from './theme';
+import { Waveform, SignalDot } from './Waveform';
 
 // ============================================================
 // データモデル(設計通りの構造をフロントの状態として再現)
@@ -33,7 +32,7 @@ const SUGGESTED_SCRIPT = [
 export const API_BASE = (typeof process !== 'undefined' && process.env && process.env.REACT_APP_API_BASE)
   || 'http://localhost:8000';
 
-export async function apiFetch(path, options = {}) {
+async function apiFetch(path, options = {}) {
   let res;
   try {
     res = await fetch(`${API_BASE}${path}`, options);
@@ -60,7 +59,7 @@ function toAbsoluteUrl(path) {
 }
 
 // サーバー側のスネークケースをフロントのキャメルケース構造にマッピング
-export function mapVoiceProfile(p) {
+function mapVoiceProfile(p) {
   return {
     id: p.id,
     label: p.label,
@@ -72,7 +71,7 @@ export function mapVoiceProfile(p) {
   };
 }
 
-export function mapChapter(c) {
+function mapChapter(c) {
   return {
     id: c.id,
     title: c.title,
@@ -92,7 +91,7 @@ function uid() {
   return Math.random().toString(36).slice(2, 10);
 }
 
-export function formatTime(sec) {
+function formatTime(sec) {
   if (!sec && sec !== 0) return '--:--';
   const m = Math.floor(sec / 60);
   const s = Math.floor(sec % 60);
@@ -100,7 +99,7 @@ export function formatTime(sec) {
 }
 
 // ----- 録音モーダル -----
-export function RecordModal({ onClose, onSave }) {
+function RecordModal({ onClose, onSave }) {
   const [label, setLabel] = useState('');
   const [eraTag, setEraTag] = useState('');
   const [recording, setRecording] = useState(false);
@@ -215,8 +214,7 @@ export function RecordModal({ onClose, onSave }) {
                 onClick={recording ? stopRecording : startRecording}
                 style={{
                   ...styles.recordBtn,
-                  background: recording ? COLORS.rose : COLORS.spectralGradient,
-                  boxShadow: recording ? `0 0 0 6px ${COLORS.roseSoft}` : `0 0 0 6px ${COLORS.panelRaised}`,
+                  background: recording ? COLORS.recordRed : COLORS.ink,
                 }}
               >
                 {recording ? <Square size={22} fill="white" /> : <Mic size={22} />}
@@ -242,7 +240,6 @@ export function RecordModal({ onClose, onSave }) {
         <button
           disabled={!canSave}
           onClick={handleSave}
-          className="vm-btn-primary"
           style={{ ...styles.primaryBtn, opacity: canSave ? 1 : 0.4, cursor: canSave ? 'pointer' : 'not-allowed' }}
         >
           {saving ? '保存中...' : '声紋として保存'}
@@ -253,7 +250,7 @@ export function RecordModal({ onClose, onSave }) {
 }
 
 // ----- アップロードモーダル(過去の音声素材用) -----
-export function UploadModal({ onClose, onSave }) {
+function UploadModal({ onClose, onSave }) {
   const [label, setLabel] = useState('');
   const [eraTag, setEraTag] = useState('');
   const [fileName, setFileName] = useState(null);
@@ -324,7 +321,6 @@ export function UploadModal({ onClose, onSave }) {
         <button
           disabled={!canSave}
           onClick={handleSave}
-          className="vm-btn-primary"
           style={{ ...styles.primaryBtn, opacity: canSave ? 1 : 0.4, cursor: canSave ? 'pointer' : 'not-allowed' }}
         >
           {saving ? '保存中...' : '声紋として保存'}
@@ -337,7 +333,7 @@ export function UploadModal({ onClose, onSave }) {
 // ----- 章の下書き音声モーダル(本人による実録音 or 音声ファイルのアップロード) -----
 // Step1をTTS合成に頼らず、本人が現在の声で読み上げた録音をそのまま下書きにできる。
 // 声質変換(Step2)はどちらの下書きに対しても同じように使える。
-export function ChapterDraftModal({ onClose, onSave }) {
+function ChapterDraftModal({ onClose, onSave }) {
   const [recording, setRecording] = useState(false);
   const [duration, setDuration] = useState(0);
   const [audioUrl, setAudioUrl] = useState(null);
@@ -413,7 +409,7 @@ export function ChapterDraftModal({ onClose, onSave }) {
           <h3 style={styles.modalTitle}>本人の声で読み上げた録音を使う</h3>
           <button onClick={onClose} style={styles.iconBtn}><X size={18} /></button>
         </div>
-        <p style={{ fontSize: 12.5, color: COLORS.mistSoft, margin: '0 0 14px', lineHeight: 1.6 }}>
+        <p style={{ fontSize: 12.5, color: COLORS.inkSoft, margin: '0 0 14px', lineHeight: 1.6 }}>
           この章の本文を、本人が現在の声で読み上げてください。TTS合成を使わないため、
           読み上げの自然さがそのまま活きます。声質変換(Step2)で年代の声に仕上げられます。
         </p>
@@ -423,11 +419,7 @@ export function ChapterDraftModal({ onClose, onSave }) {
             <div style={styles.recordArea}>
               <button
                 onClick={recording ? stopRecording : startRecording}
-                style={{
-                  ...styles.recordBtn,
-                  background: recording ? COLORS.rose : COLORS.spectralGradient,
-                  boxShadow: recording ? `0 0 0 6px ${COLORS.roseSoft}` : `0 0 0 6px ${COLORS.panelRaised}`,
-                }}
+                style={{ ...styles.recordBtn, background: recording ? COLORS.recordRed : COLORS.ink }}
               >
                 {recording ? <Square size={22} fill="white" /> : <Mic size={22} />}
               </button>
@@ -436,7 +428,7 @@ export function ChapterDraftModal({ onClose, onSave }) {
               </div>
             </div>
 
-            <div style={{ textAlign: 'center', fontSize: 11.5, color: COLORS.mistFaint, margin: '10px 0' }}>または</div>
+            <div style={{ textAlign: 'center', fontSize: 11.5, color: COLORS.inkFaint, margin: '10px 0' }}>または</div>
 
             <input ref={fileRef} type="file" accept="audio/*" onChange={handleFile} style={{ display: 'none' }} />
             <button onClick={() => fileRef.current?.click()} style={styles.uploadBtn}>
@@ -456,7 +448,6 @@ export function ChapterDraftModal({ onClose, onSave }) {
         <button
           disabled={!canSave}
           onClick={handleSave}
-          className="vm-btn-primary"
           style={{ ...styles.primaryBtn, opacity: canSave ? 1 : 0.4, cursor: canSave ? 'pointer' : 'not-allowed' }}
         >
           {saving ? 'アップロード中...' : 'この録音を下書きにする'}
@@ -466,64 +457,40 @@ export function ChapterDraftModal({ onClose, onSave }) {
   );
 }
 
-// ----- 信号readout(観測パネルの数値表示) -----
-export function ReadoutStat({ label, value }) {
-  return (
-    <div style={styles.readoutStat}>
-      <span style={styles.readoutStatValue}>{value}</span>
-      <span style={styles.readoutStatLabel}>{label}</span>
-    </div>
-  );
-}
-
-// ----- 声紋の信号カード -----
-// 声紋を「一つの受信チャンネル」として、横並びのカードで見せる。
-// 選ぶと下の観測パネルに「同調」し、そのチャンネルの波形が読み取られる。
-export function SignalCard({ profile, colorKey, active, onSelect }) {
+// ----- 声紋カード(カセットテープ風。再生中はリールが回り、波形が生きて動く) -----
+function VoiceProfileCard({ profile, colorKey, onDelete, playingId, onTogglePlay }) {
   const c = ERA_COLORS[colorKey];
+  const isPlaying = playingId === profile.id;
   return (
-    <button
-      className="vm-signal-card"
-      onClick={onSelect}
-      style={{
-        ...styles.signalCard,
-        background: active ? c.bgSoft : COLORS.panel,
-        borderColor: active ? c.bg : COLORS.line,
-        boxShadow: active ? `0 0 0 1px ${c.bg}, 0 0 18px ${c.bg}33` : 'none',
-      }}
-    >
-      <span style={{ ...styles.signalCardDot, background: c.bg, boxShadow: active ? `0 0 8px ${c.bg}` : 'none' }} />
-      <span style={styles.signalCardLabel}>{profile.label}</span>
-      <span style={{ ...styles.signalCardEra, color: c.text }}>{profile.eraTag || '年代未設定'}</span>
-    </button>
-  );
-}
-
-// ----- 観測パネル -----
-// 同調中(選択中)の声紋だけが、この受信窓で波形として読み取られる。
-export function SignalReader({ profile, colorKey, isPlaying, onTogglePlay, onDelete }) {
-  const c = ERA_COLORS[colorKey];
-  return (
-    <div style={styles.reader}>
-      <div style={styles.readerGlow} />
-      <div style={styles.readerInfo}>
-        <div style={styles.readerTitleRow}>
-          <span style={{ ...styles.readerEraTag, background: c.bg }}>{profile.eraTag || '年代未設定'}</span>
-          <span style={styles.readerTitle}>{profile.label}</span>
-        </div>
-        <div style={styles.readerMeta}>
-          <FileAudio size={11} /> {profile.sourceType}
-          {profile.durationSec != null && <> · <Clock size={11} style={{ marginLeft: 4 }} /> {formatTime(profile.durationSec)}</>}
-        </div>
-        <Waveform active={isPlaying} size="lg" bars={22} color={isPlaying ? c.bg : COLORS.mistFaint} />
+    <div style={{ ...styles.cassette, background: c.bgSoft, borderColor: c.bg }}>
+      <div style={{ ...styles.cassetteLabel, background: c.bg }}>
+        <span style={styles.cassetteEra}>{profile.eraTag || '年代未設定'}</span>
       </div>
-      <div style={styles.readerActions}>
-        <button onClick={() => onTogglePlay(profile.id)} style={{ ...styles.readerPlayBtn, background: c.bg }}>
-          {isPlaying ? <Pause size={16} /> : <Play size={16} />}
-        </button>
-        <button onClick={() => onDelete(profile.id)} style={styles.readerIconBtn}>
-          <Trash2 size={14} />
-        </button>
+      <div style={styles.cassetteBody}>
+        <div style={styles.cassetteReels}>
+          <div style={{ ...styles.reel, borderColor: c.bg, animation: isPlaying ? 'reelSpin 2.6s linear infinite' : 'none' }}>
+            <div style={{ ...styles.reelHub, background: c.bg }} />
+          </div>
+          <div style={{ ...styles.reel, borderColor: c.bg, animation: isPlaying ? 'reelSpin 2.6s linear infinite' : 'none' }}>
+            <div style={{ ...styles.reelHub, background: c.bg }} />
+          </div>
+        </div>
+        <div style={styles.cassetteTitle}>{profile.label}</div>
+        <div style={styles.cassetteMeta}>
+          <FileAudio size={12} /> {profile.sourceType}
+          {profile.durationSec != null && <> · <Clock size={12} style={{ marginLeft: 4 }} /> {formatTime(profile.durationSec)}</>}
+        </div>
+        <div style={styles.cassetteWave}>
+          <Waveform active={isPlaying} size="sm" color={c.bg} />
+        </div>
+        <div style={styles.cassetteActions}>
+          <button onClick={() => onTogglePlay(profile.id)} style={{ ...styles.smallIconBtn, color: c.text }}>
+            {isPlaying ? <Pause size={14} /> : <Play size={14} />}
+          </button>
+          <button onClick={() => onDelete(profile.id)} style={{ ...styles.smallIconBtn, color: COLORS.recordRed }}>
+            <Trash2 size={14} />
+          </button>
+        </div>
       </div>
       <audio
         id={`audio-${profile.id}`}
@@ -536,7 +503,7 @@ export function SignalReader({ profile, colorKey, isPlaying, onTogglePlay, onDel
 }
 
 // ----- 章カード(2段階: 読み上げ生成 → 声で仕上げる) -----
-export function ChapterCard({ chapter, voiceProfiles, finalEngine, onUpdate, onDelete, onGenerateDraft, onOpenDraftUpload, onApplyVoice, playingChapterId, onTogglePlay }) {
+function ChapterCard({ chapter, voiceProfiles, finalEngine, onUpdate, onDelete, onGenerateDraft, onOpenDraftUpload, onApplyVoice, playingChapterId, onTogglePlay }) {
   const profile = voiceProfiles.find((p) => p.id === chapter.voiceProfileId);
   const isPlayingDraft = playingChapterId === `draft-${chapter.id}`;
   const isPlayingFinal = playingChapterId === `final-${chapter.id}`;
@@ -550,7 +517,7 @@ export function ChapterCard({ chapter, voiceProfiles, finalEngine, onUpdate, onD
   const step1Hidden = directMode && !hasDraft && chapter.draftStatus === 'idle';
 
   return (
-    <div className="vm-chapter-card" style={styles.chapterCard}>
+    <div style={styles.chapterCard}>
       <div style={styles.chapterHeaderRow}>
         <input
           style={styles.chapterTitleInput}
@@ -593,13 +560,12 @@ export function ChapterCard({ chapter, voiceProfiles, finalEngine, onUpdate, onD
 
         {chapter.draftStatus === 'idle' && (
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            <button className="vm-btn-step" onClick={() => onOpenDraftUpload(chapter.id)} style={styles.stepBtn}>
+            <button onClick={() => onOpenDraftUpload(chapter.id)} style={styles.stepBtn}>
               本人の声で録音/アップロード
             </button>
             <button
               disabled={!chapter.body.trim()}
               onClick={() => onGenerateDraft(chapter.id)}
-              className="vm-btn-step"
               style={{ ...styles.stepBtnOutline, opacity: !chapter.body.trim() ? 0.4 : 1, cursor: !chapter.body.trim() ? 'not-allowed' : 'pointer' }}
             >
               TTSで読み上げを生成
@@ -609,21 +575,21 @@ export function ChapterCard({ chapter, voiceProfiles, finalEngine, onUpdate, onD
         {chapter.draftStatus === 'generating' && (
           <div style={styles.generatingChip}>
             <SignalDot />
-            <Waveform active size="sm" color={COLORS.spectral2} />
+            <Waveform active size="sm" color={COLORS.signal} />
             読み上げ生成中...
           </div>
         )}
         {hasDraft && (
           <div style={styles.donePlayer}>
             {chapter.draftAudioUrl && (
-              <button onClick={() => onTogglePlay(`draft-${chapter.id}`)} style={{ ...styles.playDoneBtn, background: COLORS.panelRaised, color: COLORS.mist }}>
+              <button onClick={() => onTogglePlay(`draft-${chapter.id}`)} style={{ ...styles.playDoneBtn, background: COLORS.inkFaint }}>
                 {isPlayingDraft ? <Pause size={14} /> : <Play size={14} />}
               </button>
             )}
             <span style={styles.doneLabelMuted}>
               <Check size={12} /> {isRecordingDraft ? '本人録音あり(非公開)' : 'TTS下書きあり'}
             </span>
-            <Waveform active={isPlayingDraft} size="sm" color={COLORS.mistFaint} />
+            <Waveform active={isPlayingDraft} size="sm" color={COLORS.inkFaint} />
             {bodyChangedSinceDraft && (
               <button
                 onClick={() => (isRecordingDraft ? onOpenDraftUpload(chapter.id) : onGenerateDraft(chapter.id))}
@@ -672,7 +638,6 @@ export function ChapterCard({ chapter, voiceProfiles, finalEngine, onUpdate, onD
             <button
               disabled={!step2Ready || !chapter.voiceProfileId}
               onClick={() => onApplyVoice(chapter.id)}
-              className="vm-btn-generate"
               style={{
                 ...styles.generateBtn,
                 opacity: (!step2Ready || !chapter.voiceProfileId) ? 0.4 : 1,
@@ -685,7 +650,7 @@ export function ChapterCard({ chapter, voiceProfiles, finalEngine, onUpdate, onD
           {chapter.finalStatus === 'generating' && (
             <div style={styles.generatingChip}>
               <SignalDot />
-              <Waveform active size="sm" color={COLORS.spectral2} />
+              <Waveform active size="sm" color={COLORS.signal} />
               {directMode ? '音声を生成中...(数分かかります)' : '声質変換中...'}
             </div>
           )}
@@ -697,7 +662,7 @@ export function ChapterCard({ chapter, voiceProfiles, finalEngine, onUpdate, onD
               {isPlayingFinal ? <Pause size={14} /> : <Play size={14} />}
             </button>
             <span style={styles.doneLabel}><Check size={12} /> 完成({profile?.label})</span>
-            <Waveform active={isPlayingFinal} size="sm" color={COLORS.mint} />
+            <Waveform active={isPlayingFinal} size="sm" color={COLORS.signal} />
             <audio
               id={`audio-final-${chapter.id}`}
               src={chapter.finalAudioUrl}
@@ -720,7 +685,6 @@ export default function VoiceNarrationApp() {
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [draftModalChapterId, setDraftModalChapterId] = useState(null);
   const [playingProfileId, setPlayingProfileId] = useState(null);
-  const [focusedProfileId, setFocusedProfileId] = useState(null);
   const [playingChapterId, setPlayingChapterId] = useState(null);
   const [loadError, setLoadError] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -750,14 +714,6 @@ export default function VoiceNarrationApp() {
     })();
     return () => { cancelled = true; };
   }, []);
-
-  // 未選択・削除された場合は先頭の声紋に同調する
-  useEffect(() => {
-    if (voiceProfiles.length === 0) { setFocusedProfileId(null); return; }
-    if (!voiceProfiles.some((p) => p.id === focusedProfileId)) {
-      setFocusedProfileId(voiceProfiles[0].id);
-    }
-  }, [voiceProfiles, focusedProfileId]);
 
   // 生成中(generating)の章があれば、完了するまで定期的にステータスを取得する
   useEffect(() => {
@@ -936,43 +892,14 @@ export default function VoiceNarrationApp() {
   };
 
   const doneCount = chapters.filter((c) => c.finalStatus === 'done').length;
-  const anyGenerating = chapters.some((c) => c.draftStatus === 'generating' || c.finalStatus === 'generating');
-  const focusedProfile = voiceProfiles.find((p) => p.id === focusedProfileId) || null;
-  const focusedColorKey = ERA_PALETTE[Math.max(0, voiceProfiles.findIndex((p) => p.id === focusedProfileId)) % ERA_PALETTE.length];
 
   return (
     <div style={styles.app}>
-      <style>{`
-        .vm-signal-card { transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease; }
-        .vm-signal-card:hover { transform: translateY(-2px); }
-        .vm-chapter-card { transition: box-shadow 0.22s ease, border-color 0.22s ease; animation: riseIn 0.4s ease both; }
-        .vm-chapter-card:hover { box-shadow: 0 8px 24px rgba(0,0,0,0.35); border-color: ${COLORS.spectral1}; }
-        .vm-btn-primary, .vm-btn-generate, .vm-btn-step { transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease; }
-        .vm-btn-primary:hover, .vm-btn-generate:hover, .vm-btn-step:hover { transform: translateY(-1px); filter: brightness(1.12); }
-        .vm-btn-primary:active, .vm-btn-generate:active, .vm-btn-step:active { transform: translateY(0); }
-      `}</style>
       <header style={styles.header}>
-        <div style={styles.headerBloom}><SpectralBloom bars={48} height={210} active /></div>
-        <div style={styles.headerScrim} />
         <div style={styles.headerInner}>
-          <div style={styles.brandRow}>
-            <div style={styles.brandPlate}>
-              <span style={styles.brandModel}>STATION SV-01</span>
-              <span style={styles.brandEyebrow}>VOICE SIGNAL OBSERVATORY</span>
-            </div>
-            <div style={styles.readoutRow}>
-              <ReadoutStat label="声紋" value={String(voiceProfiles.length).padStart(2, '0')} />
-              <ReadoutStat label="完成章" value={`${doneCount}/${chapters.length}`} />
-            </div>
-          </div>
+          <div style={styles.headerEyebrow}>VOICE ARCHIVE</div>
           <h1 style={styles.headerTitle}>声の記憶帳</h1>
           <p style={styles.headerSub}>過去の録音から声紋を集め、人生の章ごとにその声でナレーションする</p>
-          <div style={styles.statusRow}>
-            <SignalDot />
-            <span style={styles.statusText}>
-              {loading || anyGenerating ? '過去の声を、今読み取っています' : '受信待機中'}
-            </span>
-          </div>
         </div>
       </header>
 
@@ -1010,28 +937,18 @@ export default function VoiceNarrationApp() {
               <p style={styles.emptyText}>まだ声紋がありません。録音するか、過去の音声ファイルを追加してください。</p>
             </div>
           ) : (
-            <>
-              <div style={styles.signalRow}>
-                {voiceProfiles.map((p, i) => (
-                  <SignalCard
-                    key={p.id}
-                    profile={p}
-                    colorKey={ERA_PALETTE[i % ERA_PALETTE.length]}
-                    active={focusedProfileId === p.id}
-                    onSelect={() => setFocusedProfileId(p.id)}
-                  />
-                ))}
-              </div>
-              {focusedProfile && (
-                <SignalReader
-                  profile={focusedProfile}
-                  colorKey={focusedColorKey}
-                  isPlaying={playingProfileId === focusedProfile.id}
-                  onTogglePlay={togglePlayProfile}
+            <div style={styles.cassetteRow}>
+              {voiceProfiles.map((p, i) => (
+                <VoiceProfileCard
+                  key={p.id}
+                  profile={p}
+                  colorKey={ERA_PALETTE[i % ERA_PALETTE.length]}
                   onDelete={deleteVoiceProfile}
+                  playingId={playingProfileId}
+                  onTogglePlay={togglePlayProfile}
                 />
-              )}
-            </>
+              ))}
+            </div>
           )}
         </section>
 
@@ -1049,8 +966,8 @@ export default function VoiceNarrationApp() {
             {chapters.map((c, i) => (
               <div key={c.id} style={styles.timelineItem}>
                 <div style={styles.timelineMarker}>
-                  <div style={styles.chapterCounter}>{String(i + 1).padStart(3, '0')}</div>
-                  {i < chapters.length - 1 && <div style={styles.spectralThread} />}
+                  <div style={styles.timelineDot} />
+                  {i < chapters.length - 1 && <div style={styles.timelineLine} />}
                 </div>
                 <div style={{ flex: 1 }}>
                   <ChapterCard
@@ -1091,15 +1008,15 @@ export default function VoiceNarrationApp() {
 const styles = {
   app: {
     minHeight: '100vh',
-    background: COLORS.void,
+    background: COLORS.paper,
     fontFamily: FONT_BODY,
-    color: COLORS.mist,
+    color: COLORS.ink,
     paddingBottom: 80,
   },
   connectionError: {
-    background: COLORS.roseSoft,
-    color: '#FFB3C0',
-    border: `1px solid ${COLORS.rose}`,
+    background: '#F4D9D2',
+    color: '#7A2E1F',
+    border: '1px solid #D89A89',
     borderRadius: 10,
     padding: '12px 14px',
     fontSize: 12.5,
@@ -1108,70 +1025,30 @@ const styles = {
   },
   loadingRow: {
     display: 'flex', alignItems: 'center', gap: 8,
-    fontSize: 13, color: COLORS.mistSoft, marginBottom: 20,
+    fontSize: 13, color: COLORS.inkSoft, marginBottom: 20,
   },
   header: {
-    position: 'relative',
-    overflow: 'hidden',
-    padding: '28px 20px 36px',
-    background: COLORS.voidDeep,
-    borderBottom: `1px solid ${COLORS.line}`,
+    borderBottom: `1px solid ${COLORS.hairline}`,
+    padding: '40px 20px 32px',
+    background: `linear-gradient(180deg, ${COLORS.paperDeep} 0%, ${COLORS.paper} 100%)`,
   },
-  headerBloom: {
-    position: 'absolute',
-    inset: '0 0 0 0',
-    opacity: 0.9,
-    pointerEvents: 'none',
+  headerInner: { maxWidth: 720, margin: '0 auto' },
+  headerEyebrow: {
+    fontFamily: FONT_MONO,
+    fontSize: 11,
+    letterSpacing: '0.2em',
+    color: COLORS.amber,
+    fontWeight: 600,
+    marginBottom: 10,
   },
-  headerScrim: {
-    position: 'absolute',
-    inset: 0,
-    background: `linear-gradient(180deg, ${COLORS.voidDeep} 0%, rgba(5,5,9,0.35) 42%, rgba(5,5,9,0.55) 68%, ${COLORS.voidDeep} 100%)`,
-    pointerEvents: 'none',
-  },
-  headerInner: { maxWidth: 720, margin: '0 auto', position: 'relative' },
-  brandRow: {
-    display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start',
-    marginBottom: 26, flexWrap: 'wrap', gap: 12,
-  },
-  brandPlate: { display: 'flex', flexDirection: 'column', gap: 4 },
-  brandModel: {
-    fontFamily: FONT_MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.16em',
-    color: COLORS.spectral2,
-  },
-  brandEyebrow: {
-    fontFamily: FONT_MONO, fontSize: 9.5, letterSpacing: '0.14em',
-    color: COLORS.mistFaint,
-  },
-  readoutRow: { display: 'flex', gap: 8 },
-  readoutStat: {
-    background: COLORS.panel,
-    border: `1px solid ${COLORS.line}`,
-    borderRadius: 4,
-    padding: '5px 10px',
-    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1,
-    minWidth: 46,
-  },
-  readoutStatValue: {
-    fontFamily: FONT_MONO, fontSize: 15, fontWeight: 700, color: COLORS.mist,
-  },
-  readoutStatLabel: { fontFamily: FONT_MONO, fontSize: 8, letterSpacing: '0.08em', color: COLORS.mistFaint },
   headerTitle: {
-    fontFamily: FONT_HERO,
-    fontSize: 'clamp(36px, 7vw, 56px)',
-    fontWeight: 400,
-    color: COLORS.mist,
-    margin: '0 0 12px',
-    letterSpacing: '0.01em',
-    lineHeight: 1.2,
+    fontFamily: FONT_DISPLAY,
+    fontSize: 32,
+    fontWeight: 700,
+    margin: '0 0 8px',
+    letterSpacing: '0.02em',
   },
-  headerSub: { fontSize: 14, color: COLORS.mistSoft, margin: '0 0 18px', lineHeight: 1.7, maxWidth: 480 },
-  statusRow: {
-    display: 'flex', alignItems: 'center', gap: 9,
-    paddingTop: 18,
-    borderTop: `1px solid ${COLORS.line}`,
-  },
-  statusText: { fontFamily: FONT_MONO, fontSize: 11.5, letterSpacing: '0.04em', color: COLORS.mistSoft },
+  headerSub: { fontSize: 14, color: COLORS.inkSoft, margin: 0, lineHeight: 1.6 },
   main: { maxWidth: 720, margin: '0 auto', padding: '32px 20px 0' },
   section: { marginBottom: 40 },
   sectionHeaderRow: {
@@ -1184,19 +1061,18 @@ const styles = {
   },
   sectionTitle: {
     fontFamily: FONT_DISPLAY,
-    fontSize: 18,
+    fontSize: 19,
     fontWeight: 700,
     margin: 0,
-    color: COLORS.mist,
   },
   sectionActions: { display: 'flex', gap: 8 },
-  progressNote: { fontFamily: FONT_MONO, fontSize: 11.5, color: COLORS.mistFaint, letterSpacing: '0.02em' },
+  progressNote: { fontFamily: FONT_MONO, fontSize: 11.5, color: COLORS.inkFaint, letterSpacing: '0.02em' },
 
   secondaryBtn: {
     display: 'flex', alignItems: 'center', gap: 6,
     background: 'transparent',
-    border: `1px solid ${COLORS.lineBright}`,
-    color: COLORS.mist,
+    border: `1px solid ${COLORS.ink}`,
+    color: COLORS.ink,
     borderRadius: 100,
     padding: '7px 14px',
     fontSize: 12.5,
@@ -1205,11 +1081,11 @@ const styles = {
   },
 
   emptyState: {
-    border: `1px dashed ${COLORS.line}`,
+    border: `1px dashed ${COLORS.hairline}`,
     borderRadius: 12,
     padding: '36px 20px',
     textAlign: 'center',
-    color: COLORS.mistSoft,
+    color: COLORS.inkSoft,
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
@@ -1217,77 +1093,44 @@ const styles = {
   },
   emptyText: { fontSize: 13, margin: 0, maxWidth: 320 },
 
-  // 声紋の受信チャンネル一覧。横並びのカードで、選ぶと下の観測パネルに同調する
-  signalRow: {
+  cassetteRow: {
     display: 'flex',
-    flexWrap: 'wrap',
-    gap: 8,
-    paddingBottom: 6,
+    gap: 14,
+    overflowX: 'auto',
+    paddingBottom: 8,
   },
-  signalCard: {
-    minWidth: 128,
-    borderRadius: 8,
+  cassette: {
+    minWidth: 172,
+    borderRadius: 10,
     border: '1.5px solid',
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'flex-start',
-    gap: 6,
-    padding: '10px 12px',
-    cursor: 'pointer',
-    flexShrink: 0,
-  },
-  signalCardDot: { width: 7, height: 7, borderRadius: '50%', flexShrink: 0 },
-  signalCardLabel: { fontSize: 12.5, fontWeight: 700, color: COLORS.mist },
-  signalCardEra: { fontFamily: FONT_MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.02em' },
-
-  // 観測パネル: 同調中の声紋が波形として読み取られる受信窓
-  reader: {
-    position: 'relative',
-    display: 'flex',
-    alignItems: 'center',
-    gap: 16,
-    marginTop: 14,
-    background: COLORS.panel,
-    border: `1px solid ${COLORS.line}`,
-    borderRadius: 12,
-    padding: '16px 18px',
     overflow: 'hidden',
-  },
-  readerGlow: {
-    position: 'absolute', inset: 0,
-    background: COLORS.spectralGradientSoft,
-    opacity: 0.4,
-    pointerEvents: 'none',
-  },
-  readerInfo: { flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 6, position: 'relative' },
-  readerTitleRow: { display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
-  readerEraTag: {
-    fontFamily: FONT_MONO, fontSize: 9.5, fontWeight: 700, color: COLORS.void,
-    padding: '2px 7px', borderRadius: 4, letterSpacing: '0.04em',
-  },
-  readerTitle: { fontSize: 14.5, fontWeight: 700, color: COLORS.mist },
-  readerMeta: {
-    fontFamily: FONT_MONO, fontSize: 10, color: COLORS.mistFaint,
-    display: 'flex', alignItems: 'center', gap: 4,
-  },
-  readerActions: { display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, position: 'relative' },
-  readerPlayBtn: {
-    width: 36, height: 36, borderRadius: '50%',
-    color: COLORS.void, border: 'none',
-    display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0,
-  },
-  readerIconBtn: {
-    background: COLORS.panelRaised,
-    border: `1px solid ${COLORS.line}`,
-    borderRadius: 6,
-    width: 30, height: 30,
-    display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
-    color: COLORS.rose,
     flexShrink: 0,
+    boxShadow: '0 2px 8px rgba(42,36,30,0.1)',
   },
+  cassetteLabel: {
+    padding: '6px 10px',
+  },
+  cassetteEra: {
+    fontFamily: FONT_MONO,
+    fontSize: 10.5,
+    color: 'white',
+    fontWeight: 600,
+    letterSpacing: '0.04em',
+  },
+  cassetteBody: { padding: '12px 12px 10px', background: 'rgba(255,255,255,0.5)' },
+  cassetteReels: { display: 'flex', justifyContent: 'space-between', padding: '0 10px', marginBottom: 8 },
+  reel: {
+    width: 22, height: 22, borderRadius: '50%', border: '3px solid',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+  },
+  reelHub: { width: 6, height: 6, borderRadius: '50%' },
+  cassetteTitle: { fontSize: 13.5, fontWeight: 700, marginBottom: 4 },
+  cassetteMeta: { fontFamily: FONT_MONO, fontSize: 10, color: COLORS.inkSoft, display: 'flex', alignItems: 'center', gap: 4, marginBottom: 8 },
+  cassetteWave: { padding: '2px 0 10px' },
+  cassetteActions: { display: 'flex', gap: 6 },
   smallIconBtn: {
-    background: COLORS.panelRaised,
-    border: `1px solid ${COLORS.line}`,
+    background: 'white',
+    border: '1px solid rgba(42,36,30,0.15)',
     borderRadius: 6,
     width: 26,
     height: 26,
@@ -1295,40 +1138,17 @@ const styles = {
     alignItems: 'center',
     justifyContent: 'center',
     cursor: 'pointer',
-    color: COLORS.mistSoft,
   },
 
   timeline: { display: 'flex', flexDirection: 'column' },
   timelineItem: { display: 'flex', gap: 14 },
   timelineMarker: { display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 18 },
-  // 章立ては実際に順序を持つ情報なので、番号にちゃんと意味がある
-  chapterCounter: {
-    background: COLORS.panelRaised,
-    color: COLORS.mist,
-    fontFamily: FONT_MONO,
-    fontSize: 11,
-    fontWeight: 700,
-    letterSpacing: '0.03em',
-    borderRadius: 4,
-    padding: '4px 6px',
-    boxShadow: `inset 0 0 0 1px ${COLORS.line}`,
-    flexShrink: 0,
-  },
-  // スペクトルの光の糸。ヒーローの信号帯と同じモチーフを、章と章をつなぐ線として反復する
-  spectralThread: {
-    width: 2,
-    flex: 1,
-    marginTop: 6,
-    marginBottom: 4,
-    minHeight: 20,
-    background: COLORS.spectralGradient,
-    opacity: 0.5,
-    borderRadius: 1,
-  },
+  timelineDot: { width: 9, height: 9, borderRadius: '50%', background: COLORS.amber, flexShrink: 0 },
+  timelineLine: { width: 1.5, flex: 1, background: COLORS.hairline, marginTop: 4, marginBottom: 4, minHeight: 24 },
 
   chapterCard: {
-    background: COLORS.panel,
-    border: `1px solid ${COLORS.line}`,
+    background: COLORS.card,
+    border: `1px solid ${COLORS.hairline}`,
     borderRadius: 12,
     padding: 16,
     marginBottom: 16,
@@ -1344,11 +1164,10 @@ const styles = {
     background: 'transparent',
     padding: '4px 0',
     borderBottom: '1px solid transparent',
-    color: COLORS.mist,
   },
   chapterTextarea: {
     width: '100%',
-    border: `1px solid ${COLORS.line}`,
+    border: `1px solid ${COLORS.hairline}`,
     borderRadius: 8,
     padding: 10,
     fontSize: 13.5,
@@ -1356,38 +1175,38 @@ const styles = {
     resize: 'vertical',
     outline: 'none',
     lineHeight: 1.7,
-    background: COLORS.panelRaised,
-    color: COLORS.mist,
+    background: COLORS.cardMuted,
   },
   chapterFooter: { display: 'flex', alignItems: 'center', gap: 10, marginTop: 12, flexWrap: 'wrap' },
 
   stepBlock: {
-    borderTop: `1px solid ${COLORS.line}`,
+    borderTop: `1px solid ${COLORS.hairlineSoft}`,
     paddingTop: 12,
     marginTop: 12,
   },
   stepHeader: { display: 'flex', alignItems: 'center', gap: 9, marginBottom: 10, flexWrap: 'wrap' },
+  // LCD/カウンター風のステップ番号: 暗い筐体に信号色の数字が浮かぶ、テープカウンターの意匠
   stepNumber: {
     width: 24, height: 19, borderRadius: 3,
-    background: COLORS.panelRaised, color: COLORS.spectral2,
+    background: COLORS.ink, color: COLORS.signal,
     fontFamily: FONT_MONO,
     fontSize: 11, fontWeight: 700, letterSpacing: '0.02em',
     display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-    boxShadow: `inset 0 0 0 1px ${COLORS.line}`,
+    boxShadow: 'inset 0 0 0 1px rgba(0,0,0,0.35)',
   },
-  stepLabel: { fontSize: 13, fontWeight: 700, color: COLORS.mist },
-  stepHint: { fontSize: 11, color: COLORS.mistFaint },
+  stepLabel: { fontSize: 13, fontWeight: 700, color: COLORS.ink },
+  stepHint: { fontSize: 11, color: COLORS.inkFaint },
   stepBtn: {
-    background: COLORS.spectralGradient, color: COLORS.void, border: 'none',
-    borderRadius: 100, padding: '8px 16px', fontSize: 12.5, fontWeight: 700, cursor: 'pointer',
+    background: COLORS.ink, color: 'white', border: 'none',
+    borderRadius: 100, padding: '8px 16px', fontSize: 12.5, fontWeight: 600, cursor: 'pointer',
   },
   stepBtnOutline: {
-    background: 'transparent', color: COLORS.mist, border: `1px solid ${COLORS.lineBright}`,
+    background: 'transparent', color: COLORS.ink, border: `1px solid ${COLORS.ink}`,
     borderRadius: 100, padding: '8px 16px', fontSize: 12.5, fontWeight: 600,
   },
-  doneLabelMuted: { fontSize: 11.5, color: COLORS.mistSoft, display: 'flex', alignItems: 'center', gap: 4, fontWeight: 600 },
+  doneLabelMuted: { fontSize: 11.5, color: COLORS.inkSoft, display: 'flex', alignItems: 'center', gap: 4, fontWeight: 600 },
   regenLink: {
-    background: 'none', border: 'none', color: COLORS.spectral2, fontSize: 11,
+    background: 'none', border: 'none', color: COLORS.amber, fontSize: 11,
     textDecoration: 'underline', cursor: 'pointer', padding: 0,
   },
   voiceSelect: {
@@ -1395,110 +1214,108 @@ const styles = {
     minWidth: 160,
     padding: '8px 10px',
     borderRadius: 8,
-    border: `1px solid ${COLORS.line}`,
+    border: `1px solid ${COLORS.hairline}`,
     fontSize: 12.5,
-    background: COLORS.panelRaised,
-    color: COLORS.mist,
+    background: 'white',
+    color: COLORS.ink,
   },
   generateBtn: {
-    background: COLORS.spectralGradient,
-    color: COLORS.void,
+    background: COLORS.ink,
+    color: 'white',
     border: 'none',
     borderRadius: 100,
     padding: '8px 16px',
     fontSize: 12.5,
-    fontWeight: 700,
+    fontWeight: 600,
   },
   // 生成中インジケータ: 信号灯+波形で「AIが今処理している」ことを示す
   generatingChip: {
     display: 'flex', alignItems: 'center', gap: 8,
-    fontSize: 12, color: COLORS.mistSoft, padding: '8px 4px',
+    fontSize: 12, color: COLORS.inkSoft, padding: '8px 4px',
   },
   donePlayer: { display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
   playDoneBtn: {
     width: 28, height: 28, borderRadius: '50%',
-    background: COLORS.mint, color: COLORS.mintDeep, border: 'none',
+    background: COLORS.moss, color: 'white', border: 'none',
     display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
   },
-  doneLabel: { fontSize: 11.5, color: COLORS.mint, display: 'flex', alignItems: 'center', gap: 4, fontWeight: 600 },
+  doneLabel: { fontSize: 11.5, color: COLORS.moss, display: 'flex', alignItems: 'center', gap: 4, fontWeight: 600 },
 
   addChapterBtn: {
     display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'center',
     width: '100%',
-    border: `1px dashed ${COLORS.line}`,
+    border: `1px dashed ${COLORS.hairline}`,
     background: 'transparent',
     borderRadius: 10,
     padding: '12px',
     fontSize: 13,
-    color: COLORS.mistSoft,
+    color: COLORS.inkSoft,
     cursor: 'pointer',
     marginTop: 6,
   },
 
   overlay: {
-    position: 'fixed', inset: 0, background: 'rgba(5,5,9,0.72)',
+    position: 'fixed', inset: 0, background: 'rgba(42,36,30,0.5)',
     display: 'flex', alignItems: 'flex-end', justifyContent: 'center', zIndex: 50,
   },
   modal: {
-    background: COLORS.panel, width: '100%', maxWidth: 420,
+    background: COLORS.cardMuted, width: '100%', maxWidth: 420,
     borderRadius: '16px 16px 0 0', padding: 20, maxHeight: '88vh', overflowY: 'auto',
-    border: `1px solid ${COLORS.line}`, borderBottom: 'none',
   },
   modalHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
-  modalTitle: { fontFamily: FONT_DISPLAY, fontSize: 16, fontWeight: 700, margin: 0, color: COLORS.mist },
-  iconBtn: { background: 'transparent', border: 'none', cursor: 'pointer', color: COLORS.mistSoft },
+  modalTitle: { fontFamily: FONT_DISPLAY, fontSize: 17, margin: 0 },
+  iconBtn: { background: 'transparent', border: 'none', cursor: 'pointer', color: COLORS.inkSoft },
 
   field: { marginBottom: 12 },
-  fieldLabel: { display: 'block', fontSize: 11.5, color: COLORS.mistSoft, marginBottom: 5, fontWeight: 600 },
+  fieldLabel: { display: 'block', fontSize: 11.5, color: COLORS.inkSoft, marginBottom: 5, fontWeight: 600 },
   input: {
     width: '100%', padding: '10px 12px', borderRadius: 8,
-    border: `1px solid ${COLORS.line}`, fontSize: 13.5, outline: 'none',
-    background: COLORS.panelRaised, color: COLORS.mist,
+    border: `1px solid ${COLORS.hairline}`, fontSize: 13.5, outline: 'none', background: 'white',
   },
 
   scriptBox: {
-    border: `1px solid ${COLORS.line}`, borderRadius: 10, padding: '12px 14px',
-    background: COLORS.panelRaised, marginTop: 4,
+    border: `1px solid ${COLORS.hairline}`, borderRadius: 10, padding: '12px 14px',
+    background: COLORS.cardMuted, marginTop: 4,
   },
   scriptBoxHeader: {
     display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-    fontSize: 12, color: COLORS.mistSoft, fontWeight: 600, marginBottom: 8,
+    fontSize: 12, color: COLORS.inkSoft, fontWeight: 600, marginBottom: 8,
   },
   scriptList: {
     margin: 0, paddingLeft: 18, display: 'flex', flexDirection: 'column', gap: 5,
-    fontSize: 13.5, lineHeight: 1.6, color: COLORS.mist,
+    fontSize: 13.5, lineHeight: 1.6, color: COLORS.ink,
   },
   scriptNote: {
-    fontSize: 10.5, color: COLORS.mistFaint, marginTop: 10, lineHeight: 1.5,
+    fontSize: 10.5, color: COLORS.inkFaint, marginTop: 10, lineHeight: 1.5,
   },
 
   recordArea: {
-    border: `1px solid ${COLORS.line}`, borderRadius: 10, padding: 18,
+    border: `1px solid ${COLORS.hairline}`, borderRadius: 10, padding: 18,
     display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, margin: '14px 0',
   },
   recordBtn: {
     width: 56, height: 56, borderRadius: '50%', border: 'none',
     color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
   },
-  recordStatus: { fontFamily: FONT_MONO, fontSize: 12, color: COLORS.mistSoft },
+  recordStatus: { fontFamily: FONT_MONO, fontSize: 12, color: COLORS.inkSoft },
   recordedPreview: { width: '100%', display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'center' },
-  linkBtn: { background: 'none', border: 'none', color: COLORS.spectral2, fontSize: 12, cursor: 'pointer', textDecoration: 'underline' },
-  errorText: { color: COLORS.rose, fontSize: 12 },
+  linkBtn: { background: 'none', border: 'none', color: COLORS.amber, fontSize: 12, cursor: 'pointer', textDecoration: 'underline' },
+  errorText: { color: COLORS.recordRed, fontSize: 12 },
 
   uploadBtn: {
     display: 'flex', alignItems: 'center', gap: 8,
     width: '100%', padding: '10px 12px', borderRadius: 8,
-    border: `1px dashed ${COLORS.line}`, background: COLORS.panelRaised, fontSize: 13, cursor: 'pointer', color: COLORS.mist,
+    border: `1px dashed ${COLORS.hairline}`, background: 'white', fontSize: 13, cursor: 'pointer', color: COLORS.ink,
   },
-  analyzingRow: { display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: COLORS.mistSoft, marginTop: 10 },
+  analyzingRow: { display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: COLORS.inkSoft, marginTop: 10 },
   qualityNote: {
-    fontSize: 12, color: COLORS.mistSoft, background: COLORS.panelRaised, padding: '8px 10px',
+    fontSize: 12, color: COLORS.amberDeep, background: COLORS.amberSoft, padding: '8px 10px',
     borderRadius: 8, marginTop: 10, lineHeight: 1.6,
   },
 
   primaryBtn: {
     width: '100%', marginTop: 16,
-    background: COLORS.spectralGradient, color: COLORS.void, border: 'none',
-    borderRadius: 100, padding: '13px', fontSize: 14, fontWeight: 700,
+    background: COLORS.ink, color: 'white', border: 'none',
+    borderRadius: 100, padding: '13px', fontSize: 14, fontWeight: 600,
   },
 };
