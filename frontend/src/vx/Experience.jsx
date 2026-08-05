@@ -6,6 +6,9 @@ import {
   SignalReader, ChapterCard,
 } from '../VoiceNarrationApp';
 import { Waveform } from '../Waveform';
+// 楽屋はV2の実績あるコンポーネント(SignalReader等)を流用しているため、
+// そこへ渡す色キーだけはV2のパレットを使う(VXのgold/rose/blueを渡すとクラッシュする)
+import { ERA_PALETTE as V2_ERA_PALETTE } from '../theme';
 import { COLORS, ERA_COLORS, ERA_PALETTE, FONT_STAGE, FONT_BODY, FONT_MONO } from './theme';
 
 // ============================================================
@@ -485,7 +488,7 @@ function Backstage(props) {
             <SignalReader
               key={p.id}
               profile={p}
-              colorKey={ERA_PALETTE[i % ERA_PALETTE.length]}
+              colorKey={V2_ERA_PALETTE[i % V2_ERA_PALETTE.length]}
               isPlaying={playingProfileId === p.id}
               onTogglePlay={onTogglePlayProfile}
               onDelete={onDeleteProfile}
@@ -498,6 +501,12 @@ function Backstage(props) {
             <h3 style={styles.backstageSectionTitle}>章立て</h3>
             <span style={styles.progressNote}>{chapters.filter((c) => c.finalStatus === 'done').length} / {chapters.length} 章が完成</span>
           </div>
+          {chapters.length === 0 && (
+            <p style={styles.emptyText}>
+              まだ章がありません。下の「章を追加」で章を作り、タイトルとナレーション本文を入力してください。
+              声紋を選んで「この声で仕上げる」と、その声の幕として舞台に上がります。
+            </p>
+          )}
           {chapters.map((c) => (
             <div key={c.id} style={{ marginBottom: 14 }}>
               <ChapterCard
