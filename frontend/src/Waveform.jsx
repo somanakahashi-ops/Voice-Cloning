@@ -1,5 +1,3 @@
-import { COLORS } from './theme';
-
 // indexから決定的な疑似乱数を作る(Math.randomだと再レンダーの度に値が変わり、
 // ポーリング中にバーの高さが毎回リセットされたように見えてしまうため)
 function seeded(seed) {
@@ -54,22 +52,5 @@ export function Waveform({ active, bars = 5, size = 'md', color }) {
         );
       })}
     </span>
-  );
-}
-
-// 「AIが今処理している」ことを示す信号灯。生成中インジケータで使う。
-export function SignalDot({ style }) {
-  return (
-    <span
-      style={{
-        width: 7,
-        height: 7,
-        borderRadius: '50%',
-        background: COLORS.signal,
-        animation: 'signalPulse 1.3s ease-in-out infinite',
-        flexShrink: 0,
-        ...style,
-      }}
-    />
   );
 }

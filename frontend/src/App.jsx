@@ -3,9 +3,8 @@ import VoiceNarrationApp from './VoiceNarrationApp';
 import ListeningRoom from './ListeningRoom';
 import { COLORS, FONT_MONO, GLOBAL_KEYFRAMES } from './theme';
 
-// デッキの物理トグルスイッチ風タブ。「押し込まれている方が選択中」の
-// メタファーで、単なる下線タブより機材らしい手触りを出す。
-function DeckTab({ label, active, onClick }) {
+// 観測ステーションのチャンネル切替。選択中のタブだけスペクトルの光が灯る。
+function StationTab({ label, active, onClick }) {
   return (
     <button
       onClick={onClick}
@@ -22,19 +21,16 @@ function DeckTab({ label, active, onClick }) {
         letterSpacing: '0.14em',
         padding: '9px 16px',
         borderRadius: 3,
-        color: active ? COLORS.deck : 'rgba(243,238,227,0.55)',
-        background: active
-          ? `linear-gradient(180deg, ${COLORS.brassBright} 0%, ${COLORS.brass} 100%)`
-          : 'rgba(243,238,227,0.05)',
-        boxShadow: active
-          ? 'inset 0 1px 0 rgba(255,255,255,0.4), 0 1px 2px rgba(0,0,0,0.4)'
-          : 'inset 0 1px 2px rgba(0,0,0,0.5)',
+        color: active ? COLORS.mist : COLORS.mistFaint,
+        background: active ? COLORS.panelRaised : 'transparent',
+        boxShadow: active ? `inset 0 0 0 1px ${COLORS.lineBright}` : 'none',
         transition: 'all 0.18s ease',
       }}
     >
       <span style={{
         width: 5, height: 5, borderRadius: '50%',
-        background: active ? COLORS.deck : 'rgba(243,238,227,0.3)',
+        background: active ? COLORS.spectral2 : COLORS.mistFaint,
+        boxShadow: active ? `0 0 6px ${COLORS.spectral2}` : 'none',
         flexShrink: 0,
       }} />
       {label}
@@ -52,8 +48,8 @@ export default function App() {
       <style>{GLOBAL_KEYFRAMES}</style>
       <nav
         style={{
-          background: `linear-gradient(180deg, ${COLORS.deckPanel} 0%, ${COLORS.deck} 100%)`,
-          borderBottom: `1px solid ${COLORS.brassDeep}`,
+          background: COLORS.void,
+          borderBottom: `1px solid ${COLORS.line}`,
           display: 'flex',
           alignItems: 'center',
           gap: 8,
@@ -62,17 +58,16 @@ export default function App() {
           position: 'sticky',
           top: 0,
           zIndex: 40,
-          boxShadow: '0 2px 10px rgba(0,0,0,0.25)',
         }}
       >
         <span style={{
           fontFamily: FONT_MONO, fontSize: 9.5, letterSpacing: '0.2em',
-          color: 'rgba(243,238,227,0.35)', marginRight: 6, whiteSpace: 'nowrap',
+          color: COLORS.mistFaint, marginRight: 6, whiteSpace: 'nowrap',
         }}>
-          SRC
+          CH
         </span>
-        <DeckTab label="記憶帳" active={page === 'app'} onClick={() => setPage('app')} />
-        <DeckTab label="試聴室" active={page === 'listen'} onClick={() => setPage('listen')} />
+        <StationTab label="記憶帳" active={page === 'app'} onClick={() => setPage('app')} />
+        <StationTab label="試聴室" active={page === 'listen'} onClick={() => setPage('listen')} />
       </nav>
       {page === 'app' ? <VoiceNarrationApp /> : <ListeningRoom />}
     </div>

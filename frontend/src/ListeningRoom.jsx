@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
 import { Play, Pause } from 'lucide-react';
 import { API_BASE } from './VoiceNarrationApp';
-import { COLORS, FONT_DISPLAY, FONT_MONO } from './theme';
+import { COLORS, FONT_HERO, FONT_DISPLAY, FONT_MONO } from './theme';
 import { Waveform } from './Waveform';
-import { VUMeter } from './VUMeter';
+import { SpectralBloom, SignalDot } from './SpectralBloom';
 
 // 聴き比べ音声(backend/storage/compare)の既知ファイルの表示情報。
 // キーは拡張子なしのファイル名(ローカルは.wav、公開ページは.mp3のため)。
@@ -50,7 +50,7 @@ function sortCompare(items) {
   });
 }
 
-// カード自身が再生ボタンと波形を持つ、テープ+信号のミニプレイヤー。
+// カード自身が再生ボタンと波形を持つ、信号読み取り式のミニプレイヤー。
 // ブラウザ標準の<audio controls>は使わず、他カードのシグネチャーと統一する。
 function AudioCard({ title, note, seconds, url, adopted, onPlayingChange }) {
   const [playing, setPlaying] = useState(false);
@@ -74,13 +74,13 @@ function AudioCard({ title, note, seconds, url, adopted, onPlayingChange }) {
   return (
     <div className="vm-listen-card" style={styles.card}>
       <div style={styles.cardHead}>
-        <button onClick={toggle} style={{ ...styles.playBtn, background: adopted ? COLORS.signal : COLORS.ink }}>
+        <button onClick={toggle} style={{ ...styles.playBtn, background: adopted ? COLORS.mint : COLORS.panelRaised, color: adopted ? COLORS.mintDeep : COLORS.mist }}>
           {playing ? <Pause size={13} /> : <Play size={13} />}
         </button>
         <span style={styles.cardTitle}>{title}</span>
         {adopted && <span style={styles.adoptedBadge}>採用</span>}
         <span style={styles.cardSpacer} />
-        <Waveform active={playing} size="sm" color={adopted ? COLORS.signal : COLORS.inkFaint} />
+        <Waveform active={playing} size="sm" color={adopted ? COLORS.mint : COLORS.mistFaint} />
         {seconds != null && <span style={styles.cardMeta}>{seconds}s</span>}
       </div>
       {note && <p style={styles.cardNote}>{note}</p>}
@@ -138,16 +138,15 @@ export default function ListeningRoom() {
     <div style={styles.app}>
       <style>{`
         .vm-listen-card { transition: box-shadow 0.22s ease, border-color 0.22s ease, transform 0.22s ease; }
-        .vm-listen-card:hover { box-shadow: 0 6px 18px rgba(42,36,30,0.1); border-color: ${COLORS.amber}; transform: translateY(-2px); }
+        .vm-listen-card:hover { box-shadow: 0 8px 22px rgba(0,0,0,0.35); border-color: ${COLORS.spectral1}; transform: translateY(-2px); }
       `}</style>
       <header style={styles.header}>
-        <div style={styles.headerGrain} />
-        <span style={{ ...styles.rivet, top: 12, left: 12 }} />
-        <span style={{ ...styles.rivet, top: 12, right: 12 }} />
+        <div style={styles.headerBloom}><SpectralBloom bars={40} height={170} active={playingUrls.size > 0} /></div>
+        <div style={styles.headerScrim} />
         <div style={styles.inner}>
           <div style={styles.brandRow}>
             <div style={styles.brandPlate}>
-              <span style={styles.brandModel}>MODEL VM-1</span>
+              <span style={styles.brandModel}>STATION SV-01</span>
               <span style={styles.brandEyebrow}>LISTENING ROOM</span>
             </div>
           </div>
@@ -155,12 +154,11 @@ export default function ListeningRoom() {
           <p style={styles.lead}>
             生成・変換した音声をブラウザで聴けます。本人録音の下書きは非公開領域にあり、ここには含まれません。
           </p>
-          <div style={styles.meterRow}>
-            <VUMeter active={playingUrls.size > 0} size={160} />
-            <div style={styles.meterCaption}>
-              <span style={styles.meterCaptionLabel}>SIGNAL LEVEL</span>
-              <span style={styles.meterCaptionText}>再生中の音声がここに現れます</span>
-            </div>
+          <div style={styles.statusRow}>
+            <SignalDot />
+            <span style={styles.statusText}>
+              {playingUrls.size > 0 ? '信号を受信中です' : '再生中の音声がここに現れます'}
+            </span>
           </div>
         </div>
       </header>
@@ -223,79 +221,72 @@ export default function ListeningRoom() {
 const styles = {
   app: {
     minHeight: '100vh',
-    background: COLORS.paper,
-    fontFamily: "'Noto Sans JP', system-ui, sans-serif",
-    color: COLORS.ink,
+    background: COLORS.void,
+    fontFamily: "'Zen Kaku Gothic New', 'Noto Sans JP', system-ui, sans-serif",
+    color: COLORS.mist,
     paddingBottom: 80,
   },
   header: {
     position: 'relative',
     overflow: 'hidden',
     padding: '28px 20px 36px',
-    background: `linear-gradient(180deg, ${COLORS.deckPanel} 0%, ${COLORS.deck} 100%)`,
-    borderBottom: `3px solid ${COLORS.brassDeep}`,
+    background: COLORS.voidDeep,
+    borderBottom: `1px solid ${COLORS.line}`,
   },
-  headerGrain: {
+  headerBloom: {
     position: 'absolute',
     inset: 0,
-    opacity: 0.5,
+    opacity: 0.9,
     pointerEvents: 'none',
-    backgroundImage:
-      'repeating-linear-gradient(115deg, rgba(255,255,255,0.025) 0px, rgba(255,255,255,0.025) 1px, transparent 1px, transparent 3px)',
   },
-  rivet: {
+  headerScrim: {
     position: 'absolute',
-    width: 6, height: 6, borderRadius: '50%',
-    background: `linear-gradient(135deg, ${COLORS.brassBright}, ${COLORS.brassDeep})`,
-    boxShadow: '0 1px 1px rgba(0,0,0,0.5)',
+    inset: 0,
+    background: `linear-gradient(180deg, ${COLORS.voidDeep} 0%, rgba(5,5,9,0.35) 42%, rgba(5,5,9,0.55) 68%, ${COLORS.voidDeep} 100%)`,
+    pointerEvents: 'none',
   },
   inner: { maxWidth: 720, margin: '0 auto', position: 'relative' },
-  brandRow: { marginBottom: 20 },
-  brandPlate: { display: 'flex', flexDirection: 'column', gap: 3 },
+  brandRow: { marginBottom: 22 },
+  brandPlate: { display: 'flex', flexDirection: 'column', gap: 4 },
   brandModel: {
     fontFamily: FONT_MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.16em',
-    color: COLORS.brassBright,
+    color: COLORS.spectral2,
   },
   brandEyebrow: {
     fontFamily: FONT_MONO, fontSize: 9.5, letterSpacing: '0.14em',
-    color: 'rgba(243,238,227,0.4)',
+    color: COLORS.mistFaint,
   },
   title: {
-    fontFamily: FONT_DISPLAY,
-    fontSize: 'clamp(34px, 6.4vw, 50px)',
-    fontWeight: 700,
-    color: COLORS.paper,
-    margin: '0 0 10px',
-    letterSpacing: '0.02em',
-    lineHeight: 1.15,
+    fontFamily: FONT_HERO,
+    fontSize: 'clamp(36px, 7vw, 56px)',
+    fontWeight: 400,
+    color: COLORS.mist,
+    margin: '0 0 12px',
+    letterSpacing: '0.01em',
+    lineHeight: 1.2,
   },
-  lead: { fontSize: 14, color: 'rgba(243,238,227,0.68)', lineHeight: 1.7, margin: 0, maxWidth: 480 },
-  meterRow: {
-    marginTop: 22,
-    paddingTop: 20,
-    borderTop: '1px solid rgba(243,238,227,0.12)',
-    display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'wrap',
+  lead: { fontSize: 14, color: COLORS.mistSoft, lineHeight: 1.7, margin: '0 0 18px', maxWidth: 480 },
+  statusRow: {
+    display: 'flex', alignItems: 'center', gap: 9,
+    paddingTop: 18,
+    borderTop: `1px solid ${COLORS.line}`,
   },
-  meterCaption: { display: 'flex', flexDirection: 'column', gap: 4 },
-  meterCaptionLabel: {
-    fontFamily: FONT_MONO, fontSize: 10.5, letterSpacing: '0.18em', color: COLORS.signal, fontWeight: 700,
-  },
-  meterCaptionText: { fontSize: 12.5, color: 'rgba(243,238,227,0.6)' },
+  statusText: { fontFamily: FONT_MONO, fontSize: 11.5, letterSpacing: '0.04em', color: COLORS.mistSoft },
   connectionError: {
-    background: '#F4D9D2',
-    color: '#7A2E1F',
-    border: '1px solid #D89A89',
+    background: COLORS.roseSoft,
+    color: '#FFB3C0',
+    border: `1px solid ${COLORS.rose}`,
     borderRadius: 10,
     padding: '12px 14px',
     fontSize: 12.5,
     lineHeight: 1.6,
     marginBottom: 20,
   },
-  loading: { fontSize: 13, color: COLORS.inkSoft },
+  loading: { fontSize: 13, color: COLORS.mistSoft },
   staticNote: {
-    background: COLORS.amberSoft,
-    color: COLORS.amberDeep,
-    border: `1px solid ${COLORS.amber}`,
+    background: COLORS.spectralGradientSoft,
+    color: COLORS.mist,
+    border: `1px solid ${COLORS.lineBright}`,
     borderRadius: 10,
     padding: '10px 14px',
     fontSize: 12.5,
@@ -304,36 +295,37 @@ const styles = {
   },
   sectionTitle: {
     fontFamily: FONT_DISPLAY,
-    fontSize: 19,
+    fontSize: 18,
     fontWeight: 700,
     margin: '0 0 6px',
+    color: COLORS.mist,
   },
-  sectionNote: { fontSize: 12.5, color: COLORS.inkSoft, lineHeight: 1.6, margin: '0 0 14px' },
-  empty: { fontSize: 13, color: COLORS.inkFaint },
+  sectionNote: { fontSize: 12.5, color: COLORS.mistSoft, lineHeight: 1.6, margin: '0 0 14px' },
+  empty: { fontSize: 13, color: COLORS.mistFaint },
   card: {
-    background: COLORS.card,
-    border: `1px solid ${COLORS.hairline}`,
+    background: COLORS.panel,
+    border: `1px solid ${COLORS.line}`,
     borderRadius: 12,
     padding: '13px 16px',
     marginBottom: 12,
   },
   cardHead: { display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 },
   playBtn: {
-    width: 26, height: 26, borderRadius: '50%', border: 'none', color: 'white',
+    width: 26, height: 26, borderRadius: '50%', border: 'none',
     display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0,
   },
-  cardTitle: { fontSize: 14, fontWeight: 600 },
+  cardTitle: { fontSize: 14, fontWeight: 600, color: COLORS.mist },
   cardSpacer: { flex: 1 },
   adoptedBadge: {
     fontFamily: FONT_MONO,
     fontSize: 10,
     fontWeight: 700,
-    color: COLORS.card,
-    background: COLORS.amber,
+    color: COLORS.mintDeep,
+    background: COLORS.mint,
     borderRadius: 999,
     padding: '2px 9px',
     letterSpacing: '0.06em',
   },
-  cardMeta: { fontFamily: FONT_MONO, fontSize: 11, color: COLORS.inkFaint },
-  cardNote: { fontSize: 12.5, color: COLORS.inkSoft, lineHeight: 1.6, margin: '6px 0 0 36px' },
+  cardMeta: { fontFamily: FONT_MONO, fontSize: 11, color: COLORS.mistFaint },
+  cardNote: { fontSize: 12.5, color: COLORS.mistSoft, lineHeight: 1.6, margin: '6px 0 0 36px' },
 };
