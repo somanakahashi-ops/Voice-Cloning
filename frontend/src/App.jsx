@@ -55,80 +55,91 @@ const switcherStyles = {
   btnActive: { background: '#fff', color: '#0A0A14' },
 };
 
-// ----- V1: 紙とテープの懐古(最初のデザイン) -----
-function StationTabV1({ label, active, onClick }) {
-  return (
-    <button onClick={onClick} style={{
-      border: 'none', background: 'none', fontFamily: V1_FONT_MONO, fontSize: 12,
-      letterSpacing: '0.04em', fontWeight: active ? 700 : 500,
-      color: active ? V1_COLORS.amber : V1_COLORS.inkSoft,
-      borderBottom: active ? `2px solid ${V1_COLORS.amber}` : '2px solid transparent',
-      padding: '12px 4px 10px', cursor: 'pointer',
-    }}>
-      {label}
-    </button>
-  );
-}
-
-function AppV1() {
+// ----- 「上部タブで記憶帳/試聴室を切り替える」型のシェル(V1・V2で共有) -----
+// V1・V2は配色・タブの意匠こそ違うが、構造(タブ2つ+ページ切替)は同一なので、
+// タブの見た目とページコンポーネントだけを差し替え可能にして1つにまとめている。
+function ClassicShell({ keyframes, navStyle, navPrefix, renderTab, VoiceApp, ListenApp }) {
   const [page, setPage] = useState(isStaticHost ? 'listen' : 'app');
   return (
     <div>
-      <style>{V1_GLOBAL_KEYFRAMES}</style>
-      <nav style={{
+      <style>{keyframes}</style>
+      <nav style={navStyle}>
+        {navPrefix}
+        {renderTab('記憶帳', page === 'app', () => setPage('app'))}
+        {renderTab('試聴室', page === 'listen', () => setPage('listen'))}
+      </nav>
+      {page === 'app' ? <VoiceApp /> : <ListenApp />}
+    </div>
+  );
+}
+
+// ----- V1: 紙とテープの懐古(最初のデザイン) -----
+function tabV1Style(active) {
+  return {
+    border: 'none', background: 'none', fontFamily: V1_FONT_MONO, fontSize: 12,
+    letterSpacing: '0.04em', fontWeight: active ? 700 : 500,
+    color: active ? V1_COLORS.amber : V1_COLORS.inkSoft,
+    borderBottom: active ? `2px solid ${V1_COLORS.amber}` : '2px solid transparent',
+    padding: '12px 4px 10px', cursor: 'pointer',
+  };
+}
+
+function AppV1() {
+  return (
+    <ClassicShell
+      keyframes={V1_GLOBAL_KEYFRAMES}
+      navStyle={{
         background: V1_COLORS.paperDeep, borderBottom: `1px solid ${V1_COLORS.hairline}`,
         display: 'flex', gap: 26, justifyContent: 'center',
-      }}>
-        <StationTabV1 label="記憶帳" active={page === 'app'} onClick={() => setPage('app')} />
-        <StationTabV1 label="試聴室" active={page === 'listen'} onClick={() => setPage('listen')} />
-      </nav>
-      {page === 'app' ? <V1VoiceNarrationApp /> : <V1ListeningRoom />}
-    </div>
+      }}
+      renderTab={(label, active, onClick) => (
+        <button key={label} onClick={onClick} style={tabV1Style(active)}>{label}</button>
+      )}
+      VoiceApp={V1VoiceNarrationApp}
+      ListenApp={V1ListeningRoom}
+    />
   );
 }
 
 // ----- V2: 暗闇でスペクトルの光として声を読み取る観測ステーション(現行デザイン) -----
-function StationTabV2({ label, active, onClick }) {
-  return (
-    <button
-      onClick={onClick}
-      style={{
-        position: 'relative', display: 'flex', alignItems: 'center', gap: 7,
-        border: 'none', cursor: 'pointer', fontFamily: FONT_MONO, fontSize: 11.5,
-        fontWeight: 700, letterSpacing: '0.14em', padding: '9px 16px', borderRadius: 3,
-        color: active ? COLORS.mist : COLORS.mistFaint,
-        background: active ? COLORS.panelRaised : 'transparent',
-        boxShadow: active ? `inset 0 0 0 1px ${COLORS.lineBright}` : 'none',
-        transition: 'all 0.18s ease',
-      }}
-    >
-      <span style={{
-        width: 5, height: 5, borderRadius: '50%',
-        background: active ? COLORS.spectral2 : COLORS.mistFaint,
-        boxShadow: active ? `0 0 6px ${COLORS.spectral2}` : 'none',
-        flexShrink: 0,
-      }} />
-      {label}
-    </button>
-  );
+function tabV2Style(active) {
+  return {
+    position: 'relative', display: 'flex', alignItems: 'center', gap: 7,
+    border: 'none', cursor: 'pointer', fontFamily: FONT_MONO, fontSize: 11.5,
+    fontWeight: 700, letterSpacing: '0.14em', padding: '9px 16px', borderRadius: 3,
+    color: active ? COLORS.mist : COLORS.mistFaint,
+    background: active ? COLORS.panelRaised : 'transparent',
+    boxShadow: active ? `inset 0 0 0 1px ${COLORS.lineBright}` : 'none',
+    transition: 'all 0.18s ease',
+  };
 }
 
 function AppV2() {
-  const [page, setPage] = useState(isStaticHost ? 'listen' : 'app');
   return (
-    <div>
-      <style>{GLOBAL_KEYFRAMES}</style>
-      <nav style={{
+    <ClassicShell
+      keyframes={GLOBAL_KEYFRAMES}
+      navStyle={{
         background: COLORS.void, borderBottom: `1px solid ${COLORS.line}`,
         display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'center',
         padding: '10px 12px', position: 'sticky', top: 0, zIndex: 40,
-      }}>
+      }}
+      navPrefix={
         <span style={{ fontFamily: FONT_MONO, fontSize: 9.5, letterSpacing: '0.2em', color: COLORS.mistFaint, marginRight: 6, whiteSpace: 'nowrap' }}>CH</span>
-        <StationTabV2 label="記憶帳" active={page === 'app'} onClick={() => setPage('app')} />
-        <StationTabV2 label="試聴室" active={page === 'listen'} onClick={() => setPage('listen')} />
-      </nav>
-      {page === 'app' ? <VoiceNarrationApp /> : <ListeningRoom />}
-    </div>
+      }
+      renderTab={(label, active, onClick) => (
+        <button key={label} onClick={onClick} style={tabV2Style(active)}>
+          <span style={{
+            width: 5, height: 5, borderRadius: '50%',
+            background: active ? COLORS.spectral2 : COLORS.mistFaint,
+            boxShadow: active ? `0 0 6px ${COLORS.spectral2}` : 'none',
+            flexShrink: 0,
+          }} />
+          {label}
+        </button>
+      )}
+      VoiceApp={VoiceNarrationApp}
+      ListenApp={ListeningRoom}
+    />
   );
 }
 
