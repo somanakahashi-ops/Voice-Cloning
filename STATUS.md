@@ -1,13 +1,47 @@
 # 現在の作業状況
 
-最終更新: 2026-08(リファクタリング)
+最終更新: 2026-08(デザインバージョン切替 V1/V2/X)
 
-## リファクタリング(2026-08)
+## デザインバージョン切替(V1/V2/X)(2026-08)
 
-- **backend/main.pyをモジュール分割**(734行→ルート定義のみに縮小)。`config.py`(パス・env設定)/`state.py`(インメモリDB+state.json永続化)/`models.py`(Pydanticスキーマ)/`audio_utils.py`(音声変換・前処理・文分割)/`tts_engines.py`(Step1: AivisSpeech/Kokoro)/`voice_conversion.py`(Step2: KokoClone/Irodori)/`jobs.py`(バックグラウンドジョブ)に分離。
-  **エンドポイント・env変数・state.jsonのフォーマットは一切変更なし**。起動コマンド(`uvicorn main:app`)も同じなので、`VoiceCloningBackend`タスクは`git pull`後そのまま再起動すれば動く(依存パッケージの追加インストールも不要)。
-  このクラウド環境でCRUD一式・再起動後のstate.json復元をE2E確認済み(kokoclone/Irodoriの重い生成部分は構造変更なしのためコード確認のみ、以前このセッションで実データ変換済み)。
-- **voice-narration-prototype.tsx(単一ファイル版の旧プロトタイプ)を削除**。`frontend/src/VoiceNarrationApp.jsx`が唯一のフロントエンドソースになった(内容は既にVite側へ移行済みで、旧ファイルは死んだ重複コードだった)。
+上司へのデモ用に、「デザインブリーフを変えるとこんなに違う見た目になる」を1つのアプリで
+見せられるようにした。画面右上に常時浮かぶ**V1/V2/Xボタン**でいつでも切り替えられる
+(`frontend/src/App.jsx`の`VersionSwitcher`)。**機能面は3バージョンとも完全に同一**
+(声紋登録・章CRUD・TTS下書き生成・声質変換のすべてが同じバックエンドAPIに繋がる本物の実装。
+モックアップではない)。
+
+- **V1「紙とテープの懐古」**(最初のデザイン、無変更のまま`frontend/src/v1/`にスナップショット保存)
+  - 温かい紙とセピア、カセットテープ・VUメーター意匠。`v1/VoiceNarrationApp.jsx`
+    (1321行)・`v1/ListeningRoom.jsx`・`v1/Waveform.jsx`・`v1/theme.js`として、
+    比較用にそのまま凍結してある(以後このディレクトリの中身は変更しない方針)。
+- **V2「暗闇でスペクトルの光として声を読み取る観測ステーション」**(現行デザイン、2026-08)
+  - 「紙とテープの懐古」から対極の方向へ全面刷新。frontend-designスキルの手順
+    (ブレインストーム→計画→批評→実装→再批評)に沿って設計。
+  - シグネチャー要素: **SpectralBloom**(`frontend/src/SpectralBloom.jsx`)。
+    紫→マゼンタ→珊瑚色の3色グラデーションを「音の強度」として扱い、単一のアクセント色に
+    頼らず、ヒーロー・録音ボタン・章タイムラインの接続線・年代タグに一貫して同じスペクトルを通す。
+  - パレット: `void`(背景)/`panel`/`mist`(文字)+ スペクトル3色 + `mint`(成功)/`rose`(録音・エラー)。
+    書体: 見出し1箇所だけ`Dela Gothic One`(節度重視)、本文・中見出しは`Zen Kaku Gothic New`、
+    データ表示は`JetBrains Mono`。すべて`frontend/src/theme.js`に集約。
+  - 旧`Reel.jsx`(カセットリール)・`VUMeter.jsx`(アナログ針メーター)は削除し、
+    `SpectralBloom.jsx`に統合。`Spine`→`SignalCard`、`DeckWindow`→`SignalReader`に置き換え。
+  - ビジネスロジック(API呼び出し・状態管理・全ハンドラ)は元のまま変更していない。
+  - `frontend/src/VoiceNarrationApp.jsx`・`ListeningRoom.jsx`・`App.jsx`・`theme.js`・
+    `Waveform.jsx`・`index.html`(フォント)が対象。
+- **X「声の劇場」**(構造そのものを作り替えた新UI/UX、PC側セッションで追加)
+  - `frontend/src/vx/Experience.jsx`(671行)・`vx/theme.js`。V2とは別の配色・書体
+    (`FONT_STAGE`等)を持つが、**データ層はV2を再利用**している
+    (`apiFetch`, `mapVoiceProfile`, `mapChapter`をV2の`VoiceNarrationApp.jsx`から直接import。
+    UI部品も`RecordModal`/`UploadModal`/`ChapterDraftModal`/`SignalReader`/`ChapterCard`を
+    V2からそのまま流用)。楽屋(バックステージ)が開いた瞬間に暗転するクラッシュを修正済み。
+  - 楽屋にV2のコンポーネントを渡す際は必ずV2の`ERA_PALETTE`(`violet`/`magenta`/`coral`)を
+    使うこと。Xのパレットキー(`gold`/`rose`/`blue`等)を渡すとクラッシュする(既知の罠)。
+- **App.jsxのリファクタリング**: `StationTabV1`/`StationTabV2`と`AppV1`/`AppV2`が配色トークン
+  以外ほぼ同一の重複実装だったため、`ClassicShell`という共通コンポーネント
+  (タブ2つ+ページ切替の骨組み)にまとめた。V1/V2は見た目(`navStyle`/`renderTab`)と
+  ページコンポーネントだけを渡す形。Xは構造が別物なので統合していない。
+- 検証: ビルド成功、Playwrightで3バージョンとも表示確認(JSエラーなし。バックエンド未接続時の
+  エラーメッセージ表示は正常な想定内動作)。
 
 以下は2026-07-06時点の記録(このリファクタリング以前の作業内容)。
 
