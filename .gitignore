@@ -7,6 +7,9 @@ backend/models/
 backend/storage/
 backend/storage_private/
 
+# LANアクセス用の自己署名HTTPS証明書(端末固有の秘密鍵。generate-https-cert.ps1で生成)
+backend/certs/
+
 # KokoCloneリポジトリ（git cloneで取得するため）
 backend/kokoclone/
 

@@ -16,4 +16,11 @@ if errorlevel 1 (
 echo バックエンドを起動中...
 powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "%~dp0voice-cloning-backend.ps1"
 timeout /t 8 /nobreak >nul
-start "" http://localhost:8000/app/
+
+rem backend\certs\にHTTPS証明書があれば、httpsで開く(スマホ等LAN経由でのマイク利用に必要)。
+rem 証明書の作り方: powershell -ExecutionPolicy Bypass -File scripts\generate-https-cert.ps1
+if exist "%~dp0..\backend\certs\cert.pem" (
+    start "" https://localhost:8000/app/
+) else (
+    start "" http://localhost:8000/app/
+)

@@ -2,12 +2,18 @@
 # uvicornを起動し、落ちたら15秒後に自動再起動する。二重起動はポート8000の確認で防ぐ。
 # --host 0.0.0.0 でLAN内の他端末(スマホ等)からもアクセスできるようにしている。
 # 認証は一切ないため、信頼できる自宅/オフィスのWiFiでのみ使うこと(公衆WiFi等では使わない)。
+#
+# backend\certs\{cert.pem,key.pem} があれば自動的にHTTPSで起動する
+# (generate-https-cert.ps1で作成。LAN経由でのマイク利用にはHTTPSが必須のため)。
+# 無ければ従来どおり平文HTTPで起動する(PC自身でのlocalhostアクセスはHTTPのままでもマイクが使える)。
 $dir = $PSScriptRoot
 $log = "$dir\voice-cloning-backend-log.txt"
 $outLog = "$dir\voice-cloning-backend-out.log"
 $errLog = "$dir\voice-cloning-backend-err.log"
 $py = Join-Path $dir "..\backend\.venv\Scripts\python.exe"
 $workdir = Join-Path $dir "..\backend"
+$certFile = Join-Path $dir "..\backend\certs\cert.pem"
+$keyFile = Join-Path $dir "..\backend\certs\key.pem"
 
 function Write-Log($msg) {
     Add-Content -Path $log -Value "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') $msg"
@@ -22,13 +28,22 @@ try {
     exit 0
 } catch {}
 
+$useHttps = (Test-Path $certFile) -and (Test-Path $keyFile)
+$uvicornArgs = @("-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--log-level", "warning")
+if ($useHttps) {
+    $uvicornArgs += @("--ssl-certfile", $certFile, "--ssl-keyfile", $keyFile)
+    Write-Log "starting with HTTPS (cert found)"
+} else {
+    Write-Log "starting with plain HTTP (no cert; run generate-https-cert.ps1 for LAN mic access)"
+}
+
 Write-Log "supervisor start"
 while ($true) {
     foreach ($f in @($outLog, $errLog)) {
         if ((Test-Path $f) -and ((Get-Item $f).Length -gt 5MB)) { Clear-Content $f }
     }
     $p = Start-Process -FilePath $py `
-        -ArgumentList "-m","uvicorn","main:app","--host","0.0.0.0","--port","8000","--log-level","warning" `
+        -ArgumentList $uvicornArgs `
         -WorkingDirectory $workdir -WindowStyle Hidden `
         -RedirectStandardOutput $outLog -RedirectStandardError $errLog -PassThru
     Write-Log "uvicorn started pid=$($p.Id)"
