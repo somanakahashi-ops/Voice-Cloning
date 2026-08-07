@@ -27,11 +27,25 @@ const SUGGESTED_SCRIPT = [
   'この丘からは何百万という星が見える。',
 ];
 
-// バックエンドAPIのベースURL。環境変数等で差し替え可能にしておく。
+// バックエンドAPIのベースURL。環境変数で明示的に指定されていればそれを使う。
+// 指定がなければアクセス元のホスト名から推測する:
+//   - Vite開発サーバー(ポート5173)からは、同じホストのバックエンド(8000番)を狙う
+//     (「localhost」固定だとスマホ等からLAN経由でアクセスしたときに
+//      自分自身のlocalhostを指してしまい、API呼び出しが全部失敗するため)
+//   - それ以外(ビルド済みフロントをバックエンドの/appから配信している場合)は
+//     同一オリジンをそのまま使う
 // 接続先が起動していない場合、各API呼び出しはエラーをスローし、
 // 呼び出し元でユーザーに分かる形のエラーメッセージとして表示する。
-export const API_BASE = (typeof process !== 'undefined' && process.env && process.env.REACT_APP_API_BASE)
-  || 'http://localhost:8000';
+function computeApiBase() {
+  if (typeof process !== 'undefined' && process.env && process.env.REACT_APP_API_BASE) {
+    return process.env.REACT_APP_API_BASE;
+  }
+  if (typeof window === 'undefined') return 'http://localhost:8000';
+  const { hostname, protocol, port, origin } = window.location;
+  if (port === '5173') return `${protocol}//${hostname}:8000`;
+  return origin;
+}
+export const API_BASE = computeApiBase();
 
 export async function apiFetch(path, options = {}) {
   let res;
