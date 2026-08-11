@@ -136,6 +136,18 @@
   - `frontend/dist`があるときだけマウントされる
   - `vite.config.js`のbaseを相対パス(`./`)に変更済み — GitHub Pagesと`/app`配信で同じビルドが動く
 
+## スマホ/LANアクセス・マイク利用(2026-08)
+
+ブラウザはHTTPS(またはlocalhost自身)でしかマイク(getUserMedia)を許可しないため、
+LAN IP経由でスマホ等からアクセスして録音するには自己署名HTTPS証明書が必要。
+
+- `scripts/generate-https-cert.ps1`: opensslでSHA-256署名の自己署名証明書を生成(RSA 2048、LAN IPを自動検出してSANに含める)。`backend/certs/`に保存(gitignore対象、端末固有)
+  - 証明書があれば`voice-cloning-backend.ps1`が自動でHTTPS起動、`start-app.bat`もhttps URLでブラウザを開く
+  - LAN IPが変わったら(Wi-Fiを切り替えた等)再実行が必要
+- `scripts/reconnect-wifi.bat`: いつもと違うWi-Fiに繋いだときにまとめて実行するバッチ。バックエンド停止→証明書再生成(新IP検出)→`start-app.bat`(ビルド・起動・ブラウザ)を一括で行う
+- 前提: PCとスマホが同じLAN(同じWi-Fiルーター配下)にいること。ゲストWi-Fi等で「クライアント分離」が有効だと繋がらない
+- V1(凍結版デザイン)はAPI_BASEの修正を意図的に入れていないため、LAN経由では正しく動かない。スマホではV2かXを使うこと
+
 ## Git自動化
 
 1. **平日18時までの自動sync**(Windowsタスクスケジューラ: `VoiceCloningAutoSync`)
